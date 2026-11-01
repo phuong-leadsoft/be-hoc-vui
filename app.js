@@ -63,6 +63,7 @@
     p.breakCount = p.breakCount || 0;  // số lần phải nghỉ giải lao
     p.outs = p.outs || [];             // thời điểm các lần hết tim gần đây
     p.breakUntil = p.breakUntil || 0;
+    p.qhist = p.qhist || {};           // các câu đã hỏi của từng kỹ năng, để tránh lặp lại
     return p;
   }
 
@@ -1729,7 +1730,7 @@
     const resumed = c.floor > 0 || c.hearts < HEARTS;
     game = {
       subject, floor: c.floor, seg: segOf(c.floor), hearts: Math.max(1, Math.min(HEARTS, c.hearts)), owl: c.owl, swap: c.swap,
-      stars: 0, combo: 0, asked: 0, confirmSaid: 0, retry: [], recent: [], seen: new Set(), gifts: [],
+      stars: 0, combo: 0, asked: 0, confirmSaid: 0, retry: [], recent: [], gifts: [],
       q: null, tries: 0, taught: false, helped: false, selected: null, locked: true, teaching: false,
       wrongRun: 0, slowNext: false, unlockedAt: 0,
     };
@@ -1757,6 +1758,27 @@
     return base;
   }
 
+  // Số câu khác nhau của một kỹ năng ở một cấp (ước lượng bằng cách tạo thử, nhớ lại để dùng tiếp).
+  const poolCache = {};
+  function poolSize(skill, level) {
+    const id = skill + '@' + level;
+    if (!poolCache[id]) {
+      const keys = new Set();
+      for (let i = 0; i < 160; i++) {
+        const q = C.skills[skill].gen(level);
+        keys.add(q.say + '|' + q.answer);
+      }
+      poolCache[id] = keys.size;
+    }
+    return poolCache[id];
+  }
+
+  // Chọn câu hỏi ít lặp lại nhất:
+  // - Mỗi hồ sơ nhớ các câu đã hỏi của từng kỹ năng (profile.qhist, lưu mã ngắn của câu, mới nhất ở cuối),
+  //   không xóa khi qua mốc hay vào lại tháp. Chỉ hỏi lại khi đã hỏi hết các câu khác, câu cũ nhất quay lại trước.
+  // - Kỹ năng có ít câu (ví dụ Nghề nghiệp) được chọn ít hơn kỹ năng có nhiều câu (trọng số theo căn bậc hai).
+  // - Câu phải dạy lại vẫn cố ý quay lại sau 2 câu (g.retry).
+  const QHIST_MAX = 150;
   function makeQuestion(avoidSkill) {
     const g = game;
     const due = avoidSkill ? null : g.retry.find(r => r.due <= g.asked);
@@ -1767,18 +1789,45 @@
     let skills = g.subject.skills.filter(s => s !== avoidSkill);
     const last2 = g.recent.slice(-2);
     if (last2.length === 2 && last2[0] === last2[1] && skills.length > 1) skills = skills.filter(s => s !== last2[0]);
-    let q = null;
-    for (let i = 0; i < 30; i++) {
-      const skill = pick(skills);
-      q = C.skills[skill].gen(levelFor(skill, g.floor + 1));
+    const weights = skills.map(sk => Math.sqrt(poolSize(sk, levelFor(sk, g.floor + 1))));
+    let r = Math.random() * sum(weights);
+    let skill = skills[skills.length - 1];
+    for (let i = 0; i < skills.length; i++) {
+      r -= weights[i];
+      if (r <= 0) {
+        skill = skills[i];
+        break;
+      }
+    }
+    const level = levelFor(skill, g.floor + 1);
+    const hist = profile.qhist[skill] || (profile.qhist[skill] = []);
+    let best = null;
+    let bestAge = Infinity;
+    for (let i = 0; i < 40; i++) {
+      const q = C.skills[skill].gen(level);
       q.skill = skill;
       q.key = q.say + '|' + q.answer;
-      if (!g.seen.has(q.key)) break;
+      const age = hist.indexOf(C.hash(q.key));   // -1 = chưa hỏi bao giờ; số nhỏ = hỏi từ lâu
+      if (age < bestAge) {
+        best = q;
+        bestAge = age;
+        if (age === -1) break;
+      }
     }
-    g.seen.add(q.key);
+    const q = best || C.skills[skill].gen(level);
+    if (!best) {
+      q.skill = skill;
+      q.key = q.say + '|' + q.answer;
+    }
+    const h = C.hash(q.key);
+    const at = hist.indexOf(h);
+    if (at >= 0) hist.splice(at, 1);
+    hist.push(h);
+    if (hist.length > QHIST_MAX) hist.splice(0, hist.length - QHIST_MAX);
     g.recent.push(q.skill);
     return q;
   }
+
 
   function showTower() {
     const g = game;
@@ -2109,7 +2158,6 @@
         } else {
           // Mốc an toàn: tim đầy, trợ giúp mới cho đoạn 10 tầng tiếp theo.
           Object.assign(g, { seg: g.floor, hearts: HEARTS, owl: 1, swap: 1 });
-          g.seen.clear();
           renderLadder();
           renderStatus();
         }
@@ -2681,7 +2729,6 @@
     const g = game;
     const back = segOf(g.floor);
     Object.assign(g, { floor: back, seg: back, hearts: HEARTS, owl: 1, swap: 1, combo: 0, retry: [], locked: true });
-    g.seen.clear();
     saveClimb();
     // Hết tim 2 lần trong 10 phút: bé đang mệt hoặc mất tập trung, cho nghỉ giải lao.
     const p = profile;
@@ -2978,6 +3025,12 @@
       },
       // Xem riêng màn nổ của một mốc: BHV.burst(7) là màn sấm sét của tầng 70.
       burst(n) { megaBurst(`TẦNG ${n * 10}!`, n); },
+      // Mô phỏng chọn n câu liên tiếp (để đếm lặp lại), không hiện lên màn hình.
+      sampleQuestions(n) {
+        const out = [];
+        for (let i = 0; i < n; i++) { game.asked++; out.push(makeQuestion().key); }
+        return out;
+      },
       // Đo hiệu ứng câu đúng: giả lập một câu đúng ngay với chuỗi 3 câu.
       celebrateTest() {
         const btn = document.querySelector('.options button');

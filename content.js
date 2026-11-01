@@ -110,6 +110,10 @@
     ['🐝', 'con ong', '🌸', 'mật hoa', ['🦴', '🐟', '🥕']],
     ['🐄', 'con bò', '🌿', 'cỏ', ['🦴', '🐟', '🍦']],
     ['🐼', 'gấu trúc', '🎋', 'lá tre', ['🐟', '🦴', '🍦']],
+    ['🐦', 'con chim', '🐛', 'sâu', ['🦴', '🍦', '🥕']],
+    ['🐿️', 'con sóc', '🌰', 'hạt dẻ', ['🦴', '🐟', '🍦']],
+    ['🐔', 'con gà', '🌽', 'ngô', ['🦴', '🐟', '🍦']],
+    ['🐻', 'con gấu', '🍯', 'mật ong', ['🥕', '🌽', '🦴']],
   ].map(([animal, name, food, foodName, wrong]) => ({ animal, name, food, foodName, wrong }));
 
   const LIFE = [
@@ -120,6 +124,13 @@
     { q: 'Ban ngày, cái gì chiếu sáng trên trời?', ans: '☀️', wrong: ['🌙', '🐟', '🌳'], explain: 'Ban ngày có ông mặt trời chiếu sáng.' },
     { q: 'Ban đêm, trên trời có gì?', ans: '🌙', wrong: ['☀️', '🐟', '🌳'], explain: 'Ban đêm có ông trăng.' },
     { q: 'Con dùng gì để đánh răng?', ans: '🪥', wrong: ['🧦', '⚽', '🧸'], explain: 'Mình đánh răng bằng bàn chải.' },
+    { q: 'Trước khi ăn, con rửa tay bằng gì?', ans: '🧼', wrong: ['⚽', '🧸', '🎈'], explain: 'Mình rửa tay bằng xà phòng.' },
+    { q: 'Buổi tối, con ngủ ở đâu?', ans: '🛏️', wrong: ['🚗', '⚽', '🌳'], explain: 'Buổi tối mình ngủ trên giường.' },
+    { q: 'Đèn giao thông màu gì thì mình phải dừng lại?', scene: '🚦', ans: '🔴', wrong: ['🟢', '🟡', '🔵'], explain: 'Đèn đỏ thì mình phải dừng lại.' },
+    { q: 'Khi bị ốm, con đi gặp ai?', ans: '🧑‍⚕️', wrong: ['🧑‍🍳', '🧑‍🌾', '🧑‍🚒'], explain: 'Bị ốm thì mình đi gặp bác sĩ.' },
+    { q: 'Con uống gì để mau lớn, khỏe mạnh?', ans: '🥛', wrong: ['🍭', '🍩', '🧁'], explain: 'Uống sữa giúp mình mau lớn, khỏe mạnh.' },
+    { q: 'Rác thì mình bỏ vào đâu?', ans: '🗑️', wrong: ['🛏️', '🚗', '🌳'], explain: 'Rác thì bỏ vào thùng rác.' },
+    { q: 'Mùa hè nóng nực, mình ăn gì cho mát?', ans: '🍦', wrong: ['🔥', '🧥', '🧣'], explain: 'Mùa hè ăn kem cho mát.' },
   ];
 
   // Từ bắt đầu bằng hai chữ cái ghép (cấp 2 của "Chữ cái đầu tiên", cho bé lớn).
@@ -159,6 +170,49 @@
     ['Con gì bé xíu, bay vo ve, chăm chỉ làm mật?', '🐝', 'con ong', ['🦋', '🐞', '🐜']],
     ['Cái gì có nhiều trang, có chữ, có hình, mình đọc trước khi đi ngủ?', '📚', 'quyển sách', ['🧸', '⚽', '🪥']],
     ['Con gì có lông vũ, bay trên trời, hót líu lo?', '🐦', 'con chim', ['🐟', '🐱', '🐢']],
+    ['Con gì có hai cái càng, bò ngang, sống dưới nước?', '🦀', 'con cua', ['🐟', '🐙', '🐬']],
+    ['Con gì to nhất dưới biển, phun nước lên từ trên lưng?', '🐳', 'con cá voi', ['🐟', '🦀', '🐙']],
+    ['Con gì có bướu trên lưng, đi qua sa mạc nóng?', '🐫', 'con lạc đà', ['🐴', '🐄', '🐘']],
+    ['Con gì có cái túi trước bụng để địu con, nhảy rất xa?', '🦘', 'con chuột túi', ['🐰', '🐻', '🐵']],
+    ['Con gì sống ở xứ lạnh, đi lạch bạch, bơi giỏi mà không biết bay?', '🐧', 'chim cánh cụt', ['🐦', '🦅', '🐔']],
+    ['Con gì bò rất chậm, mang cái vỏ xoắn như ngôi nhà trên lưng?', '🐌', 'con ốc sên', ['🐰', '🐱', '🐦']],
+    ['Con gì có tám cái chân, giăng tơ để bắt muỗi?', '🕷️', 'con nhện', ['🐝', '🐜', '🦋']],
+    ['Con gì nhỏ xíu, đi thành hàng dài, khiêng mồi về tổ?', '🐜', 'con kiến', ['🐘', '🐰', '🦋']],
+    ['Con gì thân dài, không có chân, trườn trên mặt đất?', '🐍', 'con rắn', ['🐢', '🐰', '🐔']],
+    ['Con gì mõm dài, răng nhọn, da sần sùi, sống dưới sông?', '🐊', 'con cá sấu', ['🐟', '🐸', '🐢']],
+    ['Con gì lông đen trắng, rất thích ăn lá tre?', '🐼', 'con gấu trúc', ['🐻', '🐱', '🦓']],
+    ['Con gì leo trèo giỏi, đuôi dài, rất thích ăn chuối?', '🐵', 'con khỉ', ['🐶', '🐷', '🐄']],
+    ['Con gì lông vằn, được gọi là chúa sơn lâm?', '🐯', 'con hổ', ['🐱', '🐶', '🐘']],
+    ['Con gì kêu ò ò, cho mình sữa để uống?', '🐄', 'con bò', ['🐷', '🐶', '🐔']],
+    ['Con gì lông trắng xoăn như bông, kêu be be?', '🐑', 'con cừu', ['🐶', '🐷', '🐄']],
+    ['Con gì bay vào ban đêm, ngủ thì treo ngược mình?', '🦇', 'con dơi', ['🐦', '🦋', '🐝']],
+    ['Con gì mắt to tròn, thức đêm, kêu cú cú?', '🦉', 'con cú', ['🐦', '🐔', '🦆']],
+    ['Quả gì vỏ cứng, bên trong có nước ngọt mát, mọc trên cây cao?', '🥥', 'quả dừa', ['🍎', '🍌', '🍇']],
+    ['Quả gì màu đỏ, mẹ hay nấu canh và làm nước sốt?', '🍅', 'quả cà chua', ['🍌', '🍇', '🍊']],
+    ['Củ gì màu cam, các bạn thỏ rất thích?', '🥕', 'củ cà rốt', ['🍌', '🍎', '🌽']],
+    ['Quả gì nhỏ nhỏ, màu tím, mọc thành từng chùm?', '🍇', 'chùm nho', ['🍎', '🍌', '🍉']],
+    ['Quả gì vỏ vàng, rất chua, mình vắt làm nước uống?', '🍋', 'quả chanh', ['🍌', '🍎', '🍇']],
+    ['Xe gì có hai bánh, có động cơ, bố chở con đi học?', '🛵', 'xe máy', ['🚗', '🚂', '✈️']],
+    ['Xe gì màu đỏ, có thang dài, chạy đi dập lửa?', '🚒', 'xe cứu hỏa', ['🚑', '🚌', '🚗']],
+    ['Xe gì chở người bệnh tới bệnh viện, kêu bíp bo bíp bo?', '🚑', 'xe cứu thương', ['🚒', '🚌', '🚲']],
+    ['Cái gì nổi trên mặt nước, chở người qua sông?', '⛵', 'con thuyền', ['🚗', '🚲', '✈️']],
+    ['Cái gì có bốn bánh, có vô lăng, chở cả nhà đi chơi?', '🚗', 'ô tô', ['🚲', '✈️', '⛵']],
+    ['Cái gì có nhiều răng mà không biết cắn, dùng để chải tóc?', '🪮', 'cái lược', ['🪥', '✂️', '📚']],
+    ['Cái gì có hai lưỡi sắc, dùng để cắt giấy?', '✂️', 'cái kéo', ['🪥', '📚', '⚽']],
+    ['Cái gì càng gọt càng ngắn, dùng để viết chữ?', '✏️', 'cái bút chì', ['✂️', '📚', '🧸']],
+    ['Cái gì mình soi vào thì thấy mặt mình?', '🪞', 'cái gương', ['📚', '⚽', '🧸']],
+    ['Cái gì kêu reng reng, gọi mình dậy mỗi sáng?', '⏰', 'cái đồng hồ báo thức', ['📚', '☂️', '⚽']],
+    ['Cái gì có dây, mình gảy lên thì thành tiếng nhạc?', '🎸', 'cây đàn ghi ta', ['🥁', '📚', '⚽']],
+    ['Cái gì mình đánh vào thì kêu tùng tùng?', '🥁', 'cái trống', ['🎸', '📚', '🧸']],
+    ['Cái gì tròn tròn, mình đá vào thì lăn đi xa?', '⚽', 'quả bóng', ['🧸', '📚', '🪑']],
+    ['Cái gì mềm mềm hình con gấu, mình ôm khi đi ngủ?', '🧸', 'con gấu bông', ['⚽', '📚', '🪑']],
+    ['Cái gì mình thổi phồng lên, buộc dây, bay lơ lửng?', '🎈', 'quả bóng bay', ['⚽', '🧸', '📚']],
+    ['Cái gì bay trên trời nhờ gió, có sợi dây dài mình cầm?', '🪁', 'con diều', ['⚽', '🧸', '✈️']],
+    ['Cái gì có bảy màu, hiện trên trời sau cơn mưa?', '🌈', 'cầu vồng', ['☀️', '🌙', '⭐']],
+    ['Cái gì lấp lánh trên trời đêm, nhỏ xíu và có rất nhiều?', '⭐', 'ngôi sao', ['☀️', '🌈', '☁️']],
+    ['Cái gì trắng xốp, trôi trên trời, có khi đổ mưa?', '☁️', 'đám mây', ['☀️', '🌈', '⭐']],
+    ['Cái gì nóng, cháy bập bùng, con không được nghịch?', '🔥', 'ngọn lửa', ['💧', '❄️', '🌈']],
+    ['Cái gì trắng, lạnh, rơi từ trên trời xuống vào mùa đông xứ lạnh?', '❄️', 'bông tuyết', ['🔥', '☀️', '🌈']],
   ].map(([q, ans, name, wrong]) => ({ q, ans, name, wrong }));
 
   const JOBS = [
@@ -169,6 +223,13 @@
     ['Ai trồng lúa, trồng rau?', '🧑‍🌾', 'Bác nông dân trồng lúa, trồng rau.'],
     ['Ai lái máy bay?', '🧑‍✈️', 'Chú phi công lái máy bay.'],
     ['Ai giữ trật tự, an toàn trên đường phố?', '👮', 'Chú công an giữ trật tự, an toàn.'],
+    ['Ai sửa ô tô, xe máy bị hỏng?', '🧑‍🔧', 'Chú thợ sửa xe sửa ô tô, xe máy bị hỏng.'],
+    ['Ai vẽ những bức tranh thật đẹp?', '🧑‍🎨', 'Họa sĩ vẽ những bức tranh thật đẹp.'],
+    ['Ai hát cho mọi người cùng nghe?', '🧑‍🎤', 'Ca sĩ hát cho mọi người cùng nghe.'],
+    ['Ai bay lên vũ trụ?', '🧑‍🚀', 'Nhà du hành bay lên vũ trụ.'],
+    ['Ai xây những ngôi nhà cao?', '👷', 'Chú công nhân xây những ngôi nhà cao.'],
+    ['Ai làm thí nghiệm để khám phá điều mới?', '🧑‍🔬', 'Nhà khoa học làm thí nghiệm để khám phá điều mới.'],
+    ['Ai làm việc với máy tính, viết ra trò chơi và ứng dụng?', '🧑‍💻', 'Kỹ sư phần mềm làm việc với máy tính.'],
   ].map(([q, e, explain]) => ({ q, e, explain }));
 
   // Tìm cái không cùng nhóm.
@@ -177,6 +238,8 @@
     ['con vật', [['🐱', 'con mèo'], ['🐶', 'con chó'], ['🐰', 'con thỏ'], ['🐘', 'con voi'], ['🐔', 'con gà'], ['🐷', 'con lợn']]],
     ['xe cộ', [['🚗', 'ô tô'], ['🚲', 'xe đạp'], ['🚌', 'xe buýt'], ['🚂', 'tàu hỏa'], ['🚑', 'xe cứu thương'], ['🚒', 'xe cứu hỏa']]],
     ['quần áo', [['👕', 'cái áo'], ['👗', 'cái váy'], ['👖', 'cái quần'], ['🩳', 'quần đùi'], ['🧥', 'áo khoác']]],
+    ['rau củ', [['🥕', 'củ cà rốt'], ['🌽', 'bắp ngô'], ['🥦', 'súp lơ xanh'], ['🥔', 'củ khoai tây'], ['🍆', 'quả cà tím'], ['🥒', 'quả dưa chuột']]],
+    ['đồ dùng học tập', [['✏️', 'bút chì'], ['📚', 'quyển sách'], ['✂️', 'cái kéo'], ['📏', 'cái thước'], ['🎒', 'cặp sách'], ['🖍️', 'bút sáp màu']]],
   ].map(([name, items]) => ({ name, items: items.map(([e, n]) => ({ e, name: n })) }));
   const oddExplain = (item, group) => `${cap(item.name)} không phải là ${group.name}.`;
 
