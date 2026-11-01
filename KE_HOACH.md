@@ -68,6 +68,21 @@ Còn lại cho phần này:
 - Chưa thử trên tivi thật: kiểm tra độ mượt của sàn disco, mưa sao, pháo hoa và âm lượng nhạc nền; giảm nếu giật.
 - Không thêm câu nói mới nên không cần tạo lại giọng đọc.
 
+### 4.3b Chọn tuổi, câu hỏi khó hơn, tháp Đố vui: ĐÃ XONG (2026-11-01)
+
+Phụ huynh thấy câu hỏi quá dễ với bé 5 tuổi. Đã làm:
+- `CONTENT.ages`: 3–7 tuổi → cấp khởi đầu 1, 1, 2, 3, 4. Chọn tuổi khi tạo hồ sơ; hồ sơ cũ chưa có tuổi được hỏi
+  một lần ("Con mấy tuổi rồi?"); đổi ở trang Bố mẹ (`setAge()` đặt lại cấp mọi kỹ năng).
+- Lên cấp nhanh hơn: đúng ngay 5/6 câu gần nhất. Chỉ tầng 1–10 dễ hơn một bậc (trước là 1–20).
+- Kỹ năng thêm cấp: `count` 3, `add`/`sub` 4, `compare` 4, `findNumber` 4, `firstLetter` 2.
+  Kỹ năng mới: `nextNumber`, `pattern` (Toán); `riddle`, `oddOne`, `jobs` (tháp **Đố vui** 🧩).
+  Đáp án số ở cấp cao dùng 4 lựa chọn sát nhau (`numOptions`). `numWord(n)` đọc số tới 100.
+- 27 hình mới lấy từ gói npm `@twemoji/svg@15.0.0` (cùng hình với Twemoji 15.1.0); 🎵 đã thay bằng hình thật.
+
+**Việc phải làm trên Mac:** có khoảng 2000 câu nói mới chưa có giọng đọc. Thiếu file thì app dùng giọng trình duyệt
+(tivi thường không có giọng Việt nên sẽ im lặng). Chạy:
+`git pull && node tools/build.js && git add audio && git commit -m "Giọng đọc cho câu hỏi mới" && git push`
+
 ### 4.4 Máy chủ tự chạy khi bật Mac (phụ huynh đã đồng ý)
 
 - Repo đang được làm trong một thư mục tạm; cần clone/đặt ở chỗ cố định, **không** trong Desktop/Documents/Downloads

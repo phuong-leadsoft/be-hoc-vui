@@ -6,6 +6,17 @@
   const NUM = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín', 'mười',
     'mười một', 'mười hai', 'mười ba', 'mười bốn', 'mười lăm', 'mười sáu', 'mười bảy', 'mười tám', 'mười chín', 'hai mươi'];
 
+  // Đọc số 0–100 theo cách nói thường ngày: hai mươi mốt, hai mươi tư, hai mươi lăm.
+  function numWord(n) {
+    if (n <= 20) return NUM[n];
+    if (n === 100) return 'một trăm';
+    const t = Math.floor(n / 10);
+    const u = n % 10;
+    const tens = NUM[t] + ' mươi';
+    if (!u) return tens;
+    return tens + ' ' + (u === 1 ? 'mốt' : u === 4 ? 'tư' : u === 5 ? 'lăm' : NUM[u]);
+  }
+
   const rand = n => Math.floor(Math.random() * n);
   const pick = a => a[rand(a.length)];
   const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
@@ -111,52 +122,157 @@
     { q: 'Con dùng gì để đánh răng?', ans: '🪥', wrong: ['🧦', '⚽', '🧸'], explain: 'Mình đánh răng bằng bàn chải.' },
   ];
 
+  // Từ bắt đầu bằng hai chữ cái ghép (cấp 2 của "Chữ cái đầu tiên", cho bé lớn).
+  const DIGRAPHS = { ch: 'chờ', nh: 'nhờ', ng: 'ngờ', th: 'thờ', tr: 'trờ', kh: 'khờ', ph: 'phờ', gi: 'giờ' };
+  const DIGRAPH_WORDS = [
+    ['🍌', 'chuối', 'ch'], ['🐶', 'chó', 'ch'], ['🍇', 'nho', 'nh'], ['🕷️', 'nhện', 'nh'], ['🐴', 'ngựa', 'ng'], ['🌽', 'ngô', 'ng'],
+    ['🐰', 'thỏ', 'th'], ['⛵', 'thuyền', 'th'], ['🌙', 'trăng', 'tr'], ['🥁', 'trống', 'tr'], ['🥚', 'trứng', 'tr'],
+    ['🐵', 'khỉ', 'kh'], ['🧣', 'khăn', 'kh'], ['🎆', 'pháo hoa', 'ph'], ['👟', 'giày', 'gi'],
+  ].map(([e, word, l]) => ({ e, word, l }));
+
+  // Câu đố: mỗi câu chỉ có đúng một đáp án hợp lý trong các hình (đã loại hình dễ gây nhầm).
+  const RIDDLES = [
+    ['Con gì tai dài, đuôi ngắn, thích ăn cà rốt?', '🐰', 'con thỏ', ['🐱', '🐶', '🐔']],
+    ['Con gì sáng sớm gáy ò ó o?', '🐓', 'con gà trống', ['🦆', '🐱', '🐷']],
+    ['Con gì to lớn, có cái vòi thật dài?', '🐘', 'con voi', ['🦒', '🐄', '🐯']],
+    ['Quả gì vỏ xanh, ruột đỏ, hạt đen, ăn mát lành mùa hè?', '🍉', 'quả dưa hấu', ['🍌', '🍇', '🍊']],
+    ['Cái gì có bốn chân mà không biết đi, mỏi chân thì mình ngồi lên?', '🪑', 'cái ghế', ['🧸', '⚽', '🚗']],
+    ['Con gì kêu meo meo, thích bắt chuột?', '🐱', 'con mèo', ['🐶', '🐰', '🐷']],
+    ['Con gì mai cứng, bò chậm chạp, sống được cả dưới nước lẫn trên cạn?', '🐢', 'con rùa', ['🐰', '🐟', '🐦']],
+    ['Cái gì có kim ngắn, kim dài, chạy tích tắc cả ngày?', '⏰', 'cái đồng hồ', ['📚', '☂️', '🪥']],
+    ['Quả gì cong cong, vỏ vàng, các bạn khỉ rất thích?', '🍌', 'quả chuối', ['🍎', '🍉', '🍇']],
+    ['Cái gì trời mưa thì mở ra, trời tạnh thì cụp lại?', '☂️', 'cái ô', ['🕶️', '🧢', '👟']],
+    ['Con gì cổ rất dài, ăn lá trên ngọn cây cao?', '🦒', 'con hươu cao cổ', ['🐘', '🐄', '🐷']],
+    ['Con gì kêu ủn ỉn, mũi to, ăn no rồi lại ngủ?', '🐷', 'con lợn', ['🐶', '🐱', '🐔']],
+    ['Xe gì có hai bánh, mình đạp bằng chân thì xe chạy?', '🚲', 'xe đạp', ['🚗', '🚂', '✈️']],
+    ['Cái gì có cánh, bay trên trời, chở được rất nhiều người?', '✈️', 'máy bay', ['🚗', '🚲', '⛵']],
+    ['Con gì kêu ộp ộp, nhảy rất xa, sống bên bờ ao?', '🐸', 'con ếch', ['🐟', '🐱', '🐔']],
+    ['Ai được làm bằng tuyết, có mũi cà rốt, đứng ngoài sân mùa đông?', '⛄', 'người tuyết', ['🧸', '🌳', '🚗']],
+    ['Con gì có tám cái chân, sống dưới biển, biết phun mực?', '🐙', 'con bạch tuộc', ['🐟', '🐳', '🐬']],
+    ['Con gì kêu gâu gâu, trông nhà cho chủ?', '🐶', 'con chó', ['🐱', '🐷', '🐰']],
+    ['Cái gì sáng trên trời ban đêm, lúc thì tròn, lúc thì cong cong?', '🌙', 'ông trăng', ['☀️', '🌈', '☁️']],
+    ['Con gì giống con ngựa, khoác áo sọc đen trắng?', '🦓', 'con ngựa vằn', ['🐴', '🐄', '🐘']],
+    ['Xe gì chạy trên đường ray, có nhiều toa nối nhau?', '🚂', 'tàu hỏa', ['🚗', '🚲', '✈️']],
+    ['Con gì có bờm dày quanh đầu, gầm rất to, là vua của các loài thú?', '🦁', 'con sư tử', ['🐘', '🐶', '🐰']],
+    ['Con gì chân có màng, bơi dưới ao, kêu cạp cạp?', '🦆', 'con vịt', ['🐔', '🐦', '🐟']],
+    ['Quả gì màu cam, bóc vỏ ra có nhiều múi?', '🍊', 'quả cam', ['🍎', '🍌', '🍉']],
+    ['Con gì bé xíu, bay vo ve, chăm chỉ làm mật?', '🐝', 'con ong', ['🦋', '🐞', '🐜']],
+    ['Cái gì có nhiều trang, có chữ, có hình, mình đọc trước khi đi ngủ?', '📚', 'quyển sách', ['🧸', '⚽', '🪥']],
+    ['Con gì có lông vũ, bay trên trời, hót líu lo?', '🐦', 'con chim', ['🐟', '🐱', '🐢']],
+  ].map(([q, ans, name, wrong]) => ({ q, ans, name, wrong }));
+
+  const JOBS = [
+    ['Ai nấu những món ăn ngon?', '🧑‍🍳', 'Đầu bếp nấu những món ăn ngon.'],
+    ['Ai khám bệnh cho mình?', '🧑‍⚕️', 'Bác sĩ khám bệnh cho mình.'],
+    ['Ai dập tắt đám cháy?', '🧑‍🚒', 'Chú lính cứu hỏa dập tắt đám cháy.'],
+    ['Ai dạy các bạn học bài?', '🧑‍🏫', 'Thầy cô giáo dạy các bạn học bài.'],
+    ['Ai trồng lúa, trồng rau?', '🧑‍🌾', 'Bác nông dân trồng lúa, trồng rau.'],
+    ['Ai lái máy bay?', '🧑‍✈️', 'Chú phi công lái máy bay.'],
+    ['Ai giữ trật tự, an toàn trên đường phố?', '👮', 'Chú công an giữ trật tự, an toàn.'],
+  ].map(([q, e, explain]) => ({ q, e, explain }));
+
+  // Tìm cái không cùng nhóm.
+  const GROUPS = [
+    ['trái cây', [['🍎', 'quả táo'], ['🍌', 'quả chuối'], ['🍇', 'chùm nho'], ['🍓', 'quả dâu'], ['🍊', 'quả cam'], ['🍉', 'quả dưa hấu']]],
+    ['con vật', [['🐱', 'con mèo'], ['🐶', 'con chó'], ['🐰', 'con thỏ'], ['🐘', 'con voi'], ['🐔', 'con gà'], ['🐷', 'con lợn']]],
+    ['xe cộ', [['🚗', 'ô tô'], ['🚲', 'xe đạp'], ['🚌', 'xe buýt'], ['🚂', 'tàu hỏa'], ['🚑', 'xe cứu thương'], ['🚒', 'xe cứu hỏa']]],
+    ['quần áo', [['👕', 'cái áo'], ['👗', 'cái váy'], ['👖', 'cái quần'], ['🩳', 'quần đùi'], ['🧥', 'áo khoác']]],
+  ].map(([name, items]) => ({ name, items: items.map(([e, n]) => ({ e, name: n })) }));
+  const oddExplain = (item, group) => `${cap(item.name)} không phải là ${group.name}.`;
+
+  // 4 đáp án là số: đáp án đúng và 3 số sát bên (để không đoán được nhờ số quá xa).
+  function numOptions(t, lo, hi) {
+    const near = range(Math.max(lo, t - 3), Math.min(hi, t + 3)).filter(n => n !== t);
+    return [t, ...sample(near, 3)].map(n => ({ id: String(n), kind: 'num', value: n }));
+  }
+
   /* ---------- Kỹ năng: gen(level) tạo một câu hỏi, phrases() liệt kê mọi câu có thể nói ---------- */
 
+  const missAddSay = (a, c) => `${cap(NUM[a])} thêm mấy thì được ${NUM[c]}?`;
+  const missSubSay = (a, c) => `${cap(NUM[a])} bớt mấy thì còn ${NUM[c]}?`;
   const addSay = (a, b) => `${cap(NUM[a])} thêm ${NUM[b]} là mấy?`;
   const addExplain = (a, b) => `${cap(NUM[a])} thêm ${NUM[b]} là ${NUM[a + b]}.`;
   const subSay = (a, b) => `${cap(NUM[a])} bớt ${NUM[b]} còn mấy?`;
   const subExplain = (a, b) => `${cap(NUM[a])} bớt ${NUM[b]} còn ${NUM[a - b]}.`;
-  // Mọi cặp a, b ≥ 1 với a + b ≤ 10.
-  const pairs = () => range(1, 9).flatMap(a => range(1, 10 - a).map(b => [a, b]));
+  // Mọi cặp a, b ≥ 1 với a + b ≤ max.
+  const pairs = (max = 10) => range(1, max - 1).flatMap(a => range(1, max - a).map(b => [a, b]));
+  const sumScene = (a, op, b, c) => ({ type: 'sum', parts: [a, op, b, '=', c] });
 
   const skills = {
     count: {
-      name: 'Đếm', maxLevel: 2,
+      name: 'Đếm', maxLevel: 3,
       gen(level) {
+        const o = pick(COUNTABLE);
+        if (level >= 3) {
+          const n = 11 + rand(10);
+          return { say: `Có bao nhiêu ${o.name}?`, scene: { type: 'group', e: o.e, n }, mode: 'choice', options: numOptions(n, 8, 20),
+            answer: String(n), countAlong: true, explain: `Có ${NUM[n]} ${o.name}.` };
+        }
         const max = level === 1 ? 5 : 10;
-        const o = pick(COUNTABLE), n = 2 + rand(max - 1);
+        const n = 2 + rand(max - 1);
         return { say: `Có bao nhiêu ${o.name}?`, scene: { type: 'group', e: o.e, n }, mode: 'pad', padMax: max,
           answer: n, countAlong: true, explain: `Có ${NUM[n]} ${o.name}.` };
       },
-      phrases: () => COUNTABLE.flatMap(o => [`Có bao nhiêu ${o.name}?`, ...range(2, 10).map(n => `Có ${NUM[n]} ${o.name}.`)]),
+      phrases: () => COUNTABLE.flatMap(o => [`Có bao nhiêu ${o.name}?`, ...range(2, 20).map(n => `Có ${NUM[n]} ${o.name}.`)]),
     },
 
     add: {
-      name: 'Phép thêm', maxLevel: 2,
+      name: 'Phép thêm', maxLevel: 4,
       gen(level) {
+        if (level === 4) {
+          // Tìm số còn thiếu: 3 thêm mấy thì được 7?
+          const c = 4 + rand(7), a = 1 + rand(c - 2), b = c - a;
+          return { say: missAddSay(a, c), scene: sumScene(a, '+', '?', c), mode: 'pad', padMax: 10, answer: b, explain: addExplain(a, b) };
+        }
+        if (level === 3) {
+          const a = 3 + rand(15), b = 1 + rand(Math.min(9, 20 - a)), c = a + b;
+          return { say: addSay(a, b), scene: sumScene(a, '+', b, '?'), mode: 'choice', options: numOptions(c, 2, 20),
+            answer: String(c), explain: addExplain(a, b) };
+        }
         const max = level === 1 ? 5 : 10;
         const a = 1 + rand(max - 1), b = 1 + rand(max - a), o = pick(COUNTABLE);
         return { say: addSay(a, b), scene: { type: 'add', e: o.e, a, b }, mode: 'pad', padMax: max,
           answer: a + b, countAlong: true, explain: addExplain(a, b) };
       },
-      phrases: () => pairs().flatMap(([a, b]) => [addSay(a, b), addExplain(a, b)]),
+      phrases: () => [...pairs(20).flatMap(([a, b]) => [addSay(a, b), addExplain(a, b)]),
+        ...pairs(10).map(([a, b]) => missAddSay(a, a + b))],
     },
 
     sub: {
-      name: 'Phép bớt', maxLevel: 2,
+      name: 'Phép bớt', maxLevel: 4,
       gen(level) {
+        if (level === 4) {
+          // Tìm số còn thiếu: 9 bớt mấy thì còn 5?
+          const a = 4 + rand(7), b = 1 + rand(a - 1), c = a - b;
+          return { say: missSubSay(a, c), scene: sumScene(a, '−', '?', c), mode: 'pad', padMax: 10, answer: b, explain: subExplain(a, b) };
+        }
+        if (level === 3) {
+          const a = 11 + rand(10), b = 1 + rand(9), c = a - b;
+          return { say: subSay(a, b), scene: sumScene(a, '−', b, '?'), mode: 'choice', options: numOptions(c, 0, 20),
+            answer: String(c), explain: subExplain(a, b) };
+        }
         const max = level === 1 ? 5 : 10;
         const a = 2 + rand(max - 1), b = 1 + rand(a - 1), o = pick(COUNTABLE);
         return { say: subSay(a, b), scene: { type: 'sub', e: o.e, a, b }, mode: 'pad', padMax: max,
           answer: a - b, countAlong: true, explain: subExplain(a, b) };
       },
-      phrases: () => pairs().flatMap(([c, b]) => [subSay(c + b, b), subExplain(c + b, b)]),
+      phrases: () => [...pairs(20).flatMap(([c, b]) => [subSay(c + b, b), subExplain(c + b, b)]),
+        ...pairs(10).map(([c, b]) => missSubSay(c + b, c))],
     },
 
     compare: {
-      name: 'So sánh nhiều ít', maxLevel: 2,
+      name: 'So sánh', maxLevel: 4,
       gen(level) {
+        if (level >= 3) {
+          const max = level === 3 ? 20 : 100;
+          let a, b;
+          do { a = rand(max + 1); b = rand(max + 1); } while (a === b || (level === 4 && Math.floor(a / 10) === Math.floor(b / 10) && rand(2)));
+          const big = rand(2) === 0;
+          const t = big ? Math.max(a, b) : Math.min(a, b);
+          return { say: big ? 'Số nào lớn hơn?' : 'Số nào bé hơn?', scene: { type: 'none' }, mode: 'choice',
+            options: [a, b].map(n => ({ id: String(n), kind: 'num', value: n })), answer: String(t),
+            explain: `Số ${numWord(t)} ${big ? 'lớn' : 'bé'} hơn.` };
+        }
         const o = pick(COUNTABLE);
         let l, r;
         if (level === 1) {
@@ -174,18 +290,63 @@
           answer, explain: COMPARE_EXPLAIN[answer],
         };
       },
-      phrases: () => [...COUNTABLE.map(o => `Bên nào nhiều ${o.name} hơn?`), ...Object.values(COMPARE_EXPLAIN)],
+      phrases: () => [...COUNTABLE.map(o => `Bên nào nhiều ${o.name} hơn?`), ...Object.values(COMPARE_EXPLAIN),
+        'Số nào lớn hơn?', 'Số nào bé hơn?', ...range(0, 100).flatMap(n => [`Số ${numWord(n)} lớn hơn.`, `Số ${numWord(n)} bé hơn.`])],
     },
 
     findNumber: {
-      name: 'Nhận biết số', maxLevel: 2,
+      name: 'Nhận biết số', maxLevel: 4,
       gen(level) {
-        const all = range(0, level === 1 ? 10 : 20), t = pick(all);
-        const opts = [t, ...sample(all.filter(n => n !== t), 3)];
-        return { say: `Số ${NUM[t]} đâu?`, scene: { type: 'none' }, mode: 'choice',
-          options: opts.map(n => ({ id: String(n), kind: 'num', value: n })), answer: String(t), explain: `Đây là số ${NUM[t]}.` };
+        const max = [10, 20, 50, 100][level - 1];
+        const all = range(0, max), t = pick(all);
+        // Bé lớn: đáp án nhiễu gồm số đảo chữ số (25 và 52) cho khó hơn.
+        const rev = t % 10 * 10 + Math.floor(t / 10);
+        const swapped = t > 9 && t % 10 && rev !== t && rev <= max ? [rev] : [];
+        const rest = all.filter(n => n !== t && !swapped.includes(n));
+        const opts = [t, ...(level >= 3 ? swapped : []), ...sample(rest, 3)].slice(0, 4);
+        return { say: `Số ${numWord(t)} đâu?`, scene: { type: 'none' }, mode: 'choice',
+          options: opts.map(n => ({ id: String(n), kind: 'num', value: n })), answer: String(t), explain: `Đây là số ${numWord(t)}.` };
       },
-      phrases: () => range(0, 20).flatMap(n => [`Số ${NUM[n]} đâu?`, `Đây là số ${NUM[n]}.`]),
+      phrases: () => range(0, 100).flatMap(n => [`Số ${numWord(n)} đâu?`, `Đây là số ${numWord(n)}.`]),
+    },
+
+    nextNumber: {
+      name: 'Số liền trước, liền sau', maxLevel: 3,
+      gen(level) {
+        const max = [10, 20, 100][level - 1];
+        const after = rand(2) === 0;
+        const n = after ? rand(max) : 1 + rand(max);
+        const t = after ? n + 1 : n - 1;
+        const word = after ? 'sau' : 'trước';
+        return { say: `Số liền ${word} số ${numWord(n)} là số mấy?`, show: `Số liền ${word} số ${n} là số mấy?`, scene: { type: 'none' },
+          mode: 'choice', options: numOptions(t, 0, max), answer: String(t), explain: `Số liền ${word} số ${numWord(n)} là số ${numWord(t)}.` };
+      },
+      phrases: () => range(0, 99).flatMap(n => [`Số liền sau số ${numWord(n)} là số mấy?`, `Số liền sau số ${numWord(n)} là số ${numWord(n + 1)}.`,
+        `Số liền trước số ${numWord(n + 1)} là số mấy?`, `Số liền trước số ${numWord(n + 1)} là số ${numWord(n)}.`]),
+    },
+
+    pattern: {
+      name: 'Quy luật', maxLevel: 3,
+      gen(level) {
+        if (level === 3) {
+          // Dãy số đếm thêm 1, 2, 5 hoặc 10.
+          const d = pick([1, 2, 2, 5, 10]);
+          const start = d === 1 ? rand(15) : d * rand(d === 10 ? 5 : 6);
+          const seq = range(0, 3).map(i => start + i * d), t = start + 4 * d;
+          return { say: 'Số nào tiếp theo?', scene: { type: 'seq', items: seq.map(n => ({ num: n })) }, mode: 'choice',
+            options: numOptions(t, 0, 100), answer: String(t), explain: `Mỗi lần thêm ${NUM[d]}, nên số tiếp theo là ${numWord(t)}.` };
+        }
+        const [a, b, c] = sample(COUNTABLE, 3);
+        const unit = level === 1 ? [a, b] : pick([[a, b, c], [a, a, b], [a, b, b]]);
+        const len = unit.length === 2 ? 5 : 6;
+        const seq = range(0, len - 1).map(i => unit[i % unit.length]);
+        const t = unit[len % unit.length];
+        const opts = [...new Set([a, b, c])].concat(sample(COUNTABLE.filter(o => o !== a && o !== b && o !== c), 1));
+        return { say: 'Cái gì tiếp theo?', scene: { type: 'seq', items: seq.map(o => ({ e: o.e })) }, mode: 'choice',
+          options: opts.map(o => emojiOpt(o.e)), answer: t.e, explain: `Tiếp theo là ${t.name}.` };
+      },
+      phrases: () => ['Cái gì tiếp theo?', 'Số nào tiếp theo?', ...COUNTABLE.map(o => `Tiếp theo là ${o.name}.`),
+        ...[1, 2, 5, 10].flatMap(d => range(4 * d, 100).map(t => `Mỗi lần thêm ${NUM[d]}, nên số tiếp theo là ${numWord(t)}.`))],
     },
 
     shape: {
@@ -215,15 +376,22 @@
     },
 
     firstLetter: {
-      name: 'Chữ cái đầu tiên', maxLevel: 1,
-      gen() {
+      name: 'Chữ cái đầu tiên', maxLevel: 2,
+      gen(level) {
+        if (level >= 2) {
+          const w = pick(DIGRAPH_WORDS);
+          const opts = [w.l, ...sample(Object.keys(DIGRAPHS).filter(x => x !== w.l), 3)];
+          return { say: `${cap(w.word)} bắt đầu bằng chữ gì?`, show: '… bắt đầu bằng chữ gì?', scene: { type: 'big', e: w.e }, mode: 'choice',
+            options: opts.map(l => ({ id: l, kind: 'letter', value: l })), answer: w.l, explain: `${cap(w.word)} bắt đầu bằng chữ ${DIGRAPHS[w.l]}.` };
+        }
         const w = pick(WORDS);
         const opts = [w.l, ...sample(ALL_LETTERS.filter(x => x !== w.l && x !== 'q'), 3)];
         // Không hiện chữ của từ, nếu không bé chỉ cần so hình chữ.
         return { say: `${cap(w.word)} bắt đầu bằng chữ gì?`, show: '… bắt đầu bằng chữ gì?', scene: { type: 'big', e: w.e }, mode: 'choice',
           options: opts.map(l => ({ id: l, kind: 'letter', value: l })), answer: w.l, explain: `${cap(w.word)} bắt đầu bằng chữ ${LETTER_NAME[w.l]}.` };
       },
-      phrases: () => WORDS.flatMap(w => [`${cap(w.word)} bắt đầu bằng chữ gì?`, `${cap(w.word)} bắt đầu bằng chữ ${LETTER_NAME[w.l]}.`]),
+      phrases: () => [...WORDS, ...DIGRAPH_WORDS].flatMap(w => [`${cap(w.word)} bắt đầu bằng chữ gì?`,
+        `${cap(w.word)} bắt đầu bằng chữ ${LETTER_NAME[w.l] || DIGRAPHS[w.l]}.`]),
     },
 
     water: {
@@ -286,12 +454,44 @@
       },
       phrases: () => LIFE.flatMap(t => [t.q, t.explain]),
     },
+
+    riddle: {
+      name: 'Câu đố', maxLevel: 1,
+      gen() {
+        const t = pick(RIDDLES);
+        return { say: t.q, scene: { type: 'none' }, mode: 'choice', long: true,
+          options: [t.ans, ...t.wrong].map(emojiOpt), answer: t.ans, explain: `Đó là ${t.name}.` };
+      },
+      phrases: () => RIDDLES.flatMap(t => [t.q, `Đó là ${t.name}.`]),
+    },
+
+    oddOne: {
+      name: 'Không cùng nhóm', maxLevel: 1,
+      gen() {
+        const [g, other] = sample(GROUPS, 2);
+        const odd = pick(other.items);
+        const opts = [...sample(g.items, 3), odd].map(o => emojiOpt(o.e));
+        return { say: 'Cái nào không cùng nhóm?', scene: { type: 'none' }, mode: 'choice', options: opts, answer: odd.e, explain: oddExplain(odd, g) };
+      },
+      phrases: () => ['Cái nào không cùng nhóm?', ...GROUPS.flatMap(g => GROUPS.filter(o => o !== g).flatMap(o => o.items.map(it => oddExplain(it, g))))],
+    },
+
+    jobs: {
+      name: 'Nghề nghiệp', maxLevel: 1,
+      gen() {
+        const t = pick(JOBS);
+        const opts = [t.e, ...sample(JOBS.filter(j => j !== t).map(j => j.e), 3)];
+        return { say: t.q, scene: { type: 'none' }, mode: 'choice', options: opts.map(emojiOpt), answer: t.e, explain: t.explain };
+      },
+      phrases: () => JOBS.flatMap(t => [t.q, t.explain]),
+    },
   };
 
   const subjects = [
-    { id: 'math', name: 'Toán', icon: '🔢', color: '#f97316', skills: ['count', 'add', 'sub', 'compare', 'findNumber', 'shape'] },
+    { id: 'math', name: 'Toán', icon: '🔢', color: '#f97316', skills: ['count', 'add', 'sub', 'compare', 'findNumber', 'nextNumber', 'pattern', 'shape'] },
     { id: 'letters', name: 'Chữ cái', icon: '🔤', color: '#8b5cf6', skills: ['findLetter', 'firstLetter'] },
     { id: 'nature', name: 'Tự nhiên', icon: '🌿', color: '#16a34a', skills: ['water', 'fly', 'color', 'senses', 'food', 'life'] },
+    { id: 'riddle', name: 'Đố vui', icon: '🧩', color: '#e11d48', skills: ['riddle', 'oddOne', 'jobs'] },
     { id: 'mix', name: 'Tổng hợp', icon: '🎲', color: '#0ea5e9', skills: Object.keys(skills) },
   ];
 
@@ -299,9 +499,18 @@
   const stickers = ['🦄', '🐲', '🦖', '🦕', '🐳', '🐬', '🦁', '🐼', '🐨', '🐸', '🦊', '🐙', '🦋', '🐞', '🐢',
     '🦜', '🦩', '🐧', '🦔', '🐿️', '🐠', '🌈', '🚀', '🎠', '🍩', '🧁', '🍭', '🎸', '🏰', '⛄'];
   const avatars = ['🐰', '🐻', '🐱', '🐶', '🐼', '🦊', '🐯', '🐵'];
+  // Tuổi của bé quyết định cấp khởi đầu của mọi kỹ năng; sau đó độ khó vẫn tự điều chỉnh theo kết quả.
+  const ages = [
+    { age: 3, label: 'Mẫu giáo bé', level: 1 },
+    { age: 4, label: 'Mẫu giáo nhỡ', level: 1 },
+    { age: 5, label: 'Mẫu giáo lớn', level: 2 },
+    { age: 6, label: 'Lớp 1', level: 3 },
+    { age: 7, label: 'Lớp 2', level: 4 },
+  ];
 
   const phrases = {
     whoPlays: 'Ai đang chơi đấy nhỉ?',
+    askAge: 'Con mấy tuổi rồi?',
     newProfile: 'Con chọn một bạn thú thật dễ thương nhé.',
     welcomeNew: 'Chào con! Con chọn một tòa tháp để leo nhé.',
     welcomeBack: 'Chào mừng con quay lại! Hôm nay mình leo tháp nào?',
@@ -361,7 +570,7 @@
 
   // Hình dùng ở giao diện, ngoài các bảng dữ liệu ở trên.
   const UI_EMOJI = ['⭐', '🏠', '🔊', '⏳', '❤️', '💔', '🦉', '🔄', '🎁', '👑', '🔥', '📒', '🪜', '✅',
-    '🥚', '🐣', '🎉', '🚀', '🏆', '⛳', '🎨', '🪩', '🎵'];
+    '🥚', '🐣', '🎉', '🚀', '🏆', '⛳', '🎨', '🪩', '🎵', '🎂'];
 
   function allPhrases() {
     const out = [];
@@ -378,12 +587,13 @@
 
   function allEmoji() {
     const text = JSON.stringify([COUNTABLE, WORDS, WATER, LAND, FLY, NO_FLY, COLOR_ITEMS, SENSES, FOOD, LIFE, subjects, stickers, avatars,
+      DIGRAPH_WORDS, RIDDLES, JOBS, GROUPS,
       hats, pets, themes, golden, UI_EMOJI]);
     return [...new Set(text.match(/\p{Extended_Pictographic}️?/gu))];
   }
 
   globalThis.CONTENT = {
-    NUM, TENS, skills, subjects, stickers, avatars, hats, pets, themes, golden, phrases, hash, emojiFile, allPhrases, allEmoji,
+    NUM, TENS, numWord, skills, subjects, stickers, avatars, ages, hats, pets, themes, golden, phrases, hash, emojiFile, allPhrases, allEmoji,
     util: { rand, pick, shuffle, sample, range },
   };
 })();

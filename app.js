@@ -14,7 +14,7 @@
   const COOLDOWN_MS = 3000;     // khóa đáp án sau mỗi lần sai
   const RETRY_AFTER = 2;        // câu phải dạy lại sẽ quay lại sau 2 câu
   const CONFIRM_TIMES = 3;      // nhắc "bấm chốt" ở 3 câu đầu mỗi tháp
-  const LEVEL_UP = { last: 8, need: 7 };    // đúng ngay 7/8 câu gần nhất thì lên cấp
+  const LEVEL_UP = { last: 6, need: 5 };    // đúng ngay 5/6 câu gần nhất thì lên cấp
   const LEVEL_DOWN = { last: 6, max: 2 };   // chỉ đúng ngay 2/6 câu thì xuống cấp
 
   /* ================= Hồ sơ: lưu trong trình duyệt và (nếu có) máy chủ serve.py ================= */
@@ -143,8 +143,22 @@
   }
   const todayCount = p => p.days[dayKey()] || 0;
 
+  // Cấp khởi đầu của một kỹ năng theo tuổi của bé (chưa chọn tuổi thì coi như 5 tuổi).
+  function startLevel(p, id) {
+    const a = C.ages.find(x => x.age === p.age) || C.ages.find(x => x.age === 5);
+    return Math.min(a.level, C.skills[id].maxLevel || 1);
+  }
   function skillState(id) {
-    return profile.skills[id] || (profile.skills[id] = { level: 1, recent: [], total: 0, firstTry: 0 });
+    return profile.skills[id] || (profile.skills[id] = { level: startLevel(profile, id), recent: [], total: 0, firstTry: 0 });
+  }
+  // Đổi tuổi: đặt lại cấp mọi kỹ năng theo tuổi mới, rồi độ khó lại tự điều chỉnh theo kết quả.
+  function setAge(p, age) {
+    p.age = age;
+    for (const id in p.skills) {
+      p.skills[id].level = startLevel(p, id);
+      p.skills[id].recent = [];
+    }
+    Store.save(p);
   }
   function towerState(id) {
     return profile.towers[id] || (profile.towers[id] = { best: 0, wins: 0, plays: 0 });
@@ -808,14 +822,21 @@
     if (greet) Voice.say(C.phrases.whoPlays);
   }
 
+  const ageButtons = (cur, cls) => C.ages.map((a, i) => `
+    <button class="age-opt nav${a.age === cur ? ' chosen' : ''} ${cls || ''}" data-age="${a.age}" style="--i:${i}">
+      <b>${a.age} tuổi</b><small>${esc(a.label)}</small>
+    </button>`).join('');
+
   function showNewProfile(first) {
     let chosen = C.avatars[0];
+    let age = 5;
     screen('newprofile', `
       <div class="panel newprofile">
         <h2 class="screen-title">Chọn bạn thú của con</h2>
         <div class="avatar-grid">
           ${C.avatars.map((a, i) => `<button class="avatar-opt nav${i === 0 ? ' chosen' : ''}" data-a="${a}" style="--i:${i}">${emo(a)}</button>`).join('')}
         </div>
+        <div class="age-row">${ageButtons(age)}</div>
         <input id="pname" class="name-input nav" maxlength="16" placeholder="Tên của bé (bố mẹ nhập)" autocomplete="off">
         <div class="row">
           ${first ? '' : '<button class="btn-big alt nav" id="cancel">Quay lại</button>'}
@@ -830,9 +851,17 @@
         Sfx.pop();
       };
     });
+    app.querySelectorAll('.age-opt').forEach(b => {
+      b.onclick = () => {
+        age = +b.dataset.age;
+        app.querySelectorAll('.age-opt').forEach(x => x.classList.toggle('chosen', x === b));
+        Sfx.pop();
+      };
+    });
     if (!first) $('#cancel').onclick = () => showProfiles(false);
     $('#create').onclick = () => {
       const p = newProfile($('#pname').value.trim(), chosen);
+      p.age = age;
       Store.add(p);
       selectProfile(p);
     };
@@ -840,11 +869,33 @@
     Voice.say(C.phrases.newProfile);
   }
 
+  // Hồ sơ tạo từ trước khi có chọn tuổi: hỏi tuổi một lần.
+  function showAgePicker(p) {
+    screen('age', `
+      <div class="panel newprofile">
+        <div class="age-who">${avatarHtml(p, true)}<b>${esc(p.name || 'Bé')}</b></div>
+        <h2 class="screen-title">Con mấy tuổi rồi?</h2>
+        <div class="age-row big">${ageButtons(p.age)}</div>
+        <p class="hint">Tuổi giúp chọn câu hỏi vừa sức. Bố mẹ đổi lại được trong trang "Bố mẹ xem".</p>
+      </div>
+      ${corner()}`);
+    app.querySelectorAll('.age-opt').forEach(b => {
+      b.onclick = () => {
+        setAge(p, +b.dataset.age);
+        Sfx.pop();
+        showHome(true);
+      };
+    });
+    focusFirst('.age-opt[data-age="5"]');
+    Voice.say(C.phrases.askAge);
+  }
+
   function selectProfile(p) {
     profile = p;
     writeLocal(LAST_KEY, p.id);
     applyTheme();
-    showHome(true);
+    if (!p.age) showAgePicker(p);
+    else showHome(true);
   }
 
   /* ================= Trang chủ của bé ================= */
@@ -884,7 +935,7 @@
             <span class="tower-name">${esc(s.name)}</span>
             <span class="segs">${Array.from({ length: FLOORS / SEGMENT }, (_, k) =>
               `<i style="--p:${Math.max(0, Math.min(1, (floor - k * SEGMENT) / SEGMENT))}"></i>`).join('')}</span>
-            <span class="tower-best">${wins ? emo('👑', 'tiny') : ''}Đang ở tầng <b>${floor}</b>/${FLOORS}</span>
+            <span class="tower-best">${wins ? emo('👑', 'tiny') : ''}Tầng <b>${floor}</b>/${FLOORS}</span>
           </button>`;
         }).join('')}
       </div>
@@ -967,6 +1018,8 @@
           ⭐ ${p.stars} sao · 🔥 ${streakOf(p)} ngày liên tiếp · ${p.plays} lượt leo tháp · bộ sưu tập ${collectionCount(p)}<br>
           Lưu tiến độ: ${Store.server ? 'máy chủ trong nhà (serve.py) và trình duyệt này' : 'chỉ trong trình duyệt này'}
         </p>
+        <div class="age-row small"><span class="meta">Tuổi:</span>${ageButtons(p.age)}</div>
+        <p class="meta muted">Đổi tuổi sẽ đặt lại cấp độ của mọi kỹ năng theo tuổi mới; sau đó độ khó tự tăng giảm theo kết quả của bé.</p>
         <div class="row">
           <button class="btn-big nav" id="back">← Về nhà</button>
           <button class="btn-big danger nav" id="delete">Xóa hồ sơ này</button>
@@ -980,7 +1033,7 @@
                 ` · cao nhất ${t.best || 0}/${FLOORS}${t.wins ? ` · về đích ${t.wins} lần` : ''}</th></tr>`;
               if (s.id === 'mix') return head;
               return head + s.skills.map(id => {
-                const st = p.skills[id] || { level: 1, recent: [], total: 0, firstTry: 0 };
+                const st = p.skills[id] || { level: startLevel(p, id), recent: [], total: 0, firstTry: 0 };
                 const pct = st.total ? Math.round((st.firstTry / st.total) * 100) : 0;
                 return `<tr>
                   <td>${esc(C.skills[id].name)}</td>
@@ -996,6 +1049,13 @@
         <p class="credits">Hình minh họa: Twemoji (CC-BY 4.0). Giọng đọc: Linh (macOS).</p>
       </div>`);
     $('#back').onclick = () => showHome(false);
+    app.querySelectorAll('.age-opt').forEach(b => {
+      b.onclick = () => {
+        if (+b.dataset.age === p.age) return;
+        setAge(p, +b.dataset.age);
+        showParents();
+      };
+    });
     $('#delete').onclick = () => {
       if (!window.confirm(`Xóa toàn bộ tiến độ của ${p.name || 'bé'}? Không khôi phục được.`)) return;
       Store.remove(p);
@@ -1036,11 +1096,11 @@
     Store.save(profile);
   }
 
-  // Tầng 1–20 dễ hơn cấp của bé một bậc, 21–60 đúng cấp, 61–100 khó hơn một bậc.
+  // Tầng 1–10 (khởi động) dễ hơn cấp của bé một bậc, 11–60 đúng cấp, 61–100 khó hơn một bậc.
   function levelFor(skill, floor) {
     const base = skillState(skill).level;
     const max = C.skills[skill].maxLevel || 1;
-    if (floor <= 20) return Math.max(1, base - 1);
+    if (floor <= 10) return Math.max(1, base - 1);
     if (floor > 60) return Math.min(max, base + 1);
     return base;
   }
@@ -1162,6 +1222,7 @@
     renderStatus();
     renderScene(q);
     $('.ask-text').textContent = q.show || q.say;
+    $('.ask-text').classList.toggle('long', !!q.long);
     renderOptions(q);
     setAction(null);
     mood('idle');
@@ -1188,13 +1249,20 @@
     const s = q.scene;
     el.className = 'scene scene-' + s.type;
     if (s.type === 'group') {
-      el.innerHTML = group(s.e, s.n, undefined, s.n > 5 ? 'wide' : '');
+      el.innerHTML = group(s.e, s.n, undefined, s.n > 10 ? 'many' : s.n > 5 ? 'wide' : '');
     } else if (s.type === 'add') {
       el.innerHTML = `<div class="badged" data-n="${s.a}">${group(s.e, s.a)}</div><span class="op">+</span>` +
         `<div class="badged" data-n="${s.b}">${group(s.e, s.b)}</div><span class="op">=</span><span class="op q">?</span>`;
     } else if (s.type === 'sub') {
       el.innerHTML = `<div class="badged" data-n="${s.a}">${group(s.e, s.a, s.a - s.b, s.a > 5 ? 'wide' : '')}</div>` +
         `<span class="op small">bớt ${s.b}</span><span class="op">=</span><span class="op q">?</span>`;
+    } else if (s.type === 'sum') {
+      // Phép tính bằng chữ số cho bé lớn: 12 + 5 = ?, 3 + ? = 7.
+      el.innerHTML = s.parts.map(x => (typeof x === 'number' ? `<span class="op num-big">${x}</span>`
+        : x === '?' ? '<span class="op q">?</span>' : `<span class="op">${x}</span>`)).join('');
+    } else if (s.type === 'seq') {
+      el.innerHTML = `<div class="seq">${s.items.map((it, i) => `<span class="seq-item" style="--i:${i}">${it.e ? emo(it.e) : `<b>${it.num}</b>`}</span>`).join('')}` +
+        '<span class="seq-item q">?</span></div>';
     } else if (s.type === 'big') {
       el.innerHTML = emo(s.e, 'big');
     } else {
@@ -1222,8 +1290,8 @@
   function optionHtml(o) {
     switch (o.kind) {
       case 'emoji': return emo(o.value);
-      case 'num': return `<span class="num">${o.value}</span>`;
-      case 'letter': return `<span class="letter"><span>${esc(o.value.toUpperCase())}</span><span>${esc(o.value)}</span></span>`;
+      case 'num': return `<span class="num${o.value >= 100 ? ' small' : ''}">${o.value}</span>`;
+      case 'letter': return `<span class="letter${o.value.length > 1 ? ' pair' : ''}"><span>${esc(o.value.charAt(0).toUpperCase() + o.value.slice(1))}</span><span>${esc(o.value)}</span></span>`;
       case 'shape': return shapeSvg(o.value.shape, o.value.color);
       case 'color': return blobSvg(o.value);
       case 'group': return group(o.value.e, o.value.n);
@@ -2025,7 +2093,7 @@
       }
     } else if (s === 'screen-end' || s === 'screen-album' || s === 'screen-parents') {
       showHome(false);
-    } else if (s === 'screen-home' || s === 'screen-newprofile') {
+    } else if (s === 'screen-home' || s === 'screen-newprofile' || s === 'screen-age') {
       showProfiles(false);
     }
   }
