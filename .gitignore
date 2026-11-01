@@ -3,3 +3,6 @@ data/
 dist/
 node_modules/
 .DS_Store
+
+# Khóa ghép đôi với tivi (tools/lgtv.py tạo ra), không đưa lên
+.lgtv_key.json
