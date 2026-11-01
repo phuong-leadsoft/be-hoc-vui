@@ -1,6 +1,6 @@
 # Bé Học Vui
 
-Trò chơi leo tháp đố vui cho bé 5 tuổi: Toán, Chữ cái, Tự nhiên và Tổng hợp. Câu hỏi được đọc to bằng giọng tiếng Việt.
+Trò chơi leo tháp đố vui cho bé 3–7 tuổi: Toán, Chữ cái, Tự nhiên, Đố vui và Tổng hợp. Câu hỏi được đọc to bằng giọng tiếng Việt.
 
 ## Chạy
 
@@ -48,8 +48,14 @@ Phiên Developer Mode có thời hạn: thỉnh thoảng mở app Developer Mode
 - Sai 2 lần: cú dạy lại, bé tự chọn đúng nhưng không lên tầng, câu đó quay lại sau 2 câu.
 - Hết 3 tim: quay về mốc an toàn gần nhất, tim đầy lại. Tới mốc mới cũng được nạp đầy tim.
 - Quyền trợ giúp mỗi đoạn 10 tầng: **Hỏi Cú** (giải thích, không có sao) và **Đổi câu**.
-- Độ khó tự tăng khi bé đúng ngay 7/8 câu gần nhất của một kỹ năng, tự giảm khi sai nhiều.
-  Tầng 1–20 dễ hơn một bậc, tầng 61–100 khó hơn một bậc.
+- Khi tạo hồ sơ, bố mẹ chọn tuổi (3–7). Tuổi quyết định cấp khởi đầu: 3–4 tuổi cấp 1, 5 tuổi cấp 2,
+  6 tuổi (lớp 1) cấp 3, 7 tuổi (lớp 2) cấp 4. Đổi tuổi trong trang "Bố mẹ xem".
+- Độ khó tự tăng khi bé đúng ngay 5/6 câu gần nhất của một kỹ năng, tự giảm khi sai nhiều.
+  Tầng 1–10 (khởi động) dễ hơn một bậc, tầng 61–100 khó hơn một bậc.
+- Cấp cao của Toán: đếm tới 20, cộng trừ trong phạm vi 20 bằng chữ số, tìm số còn thiếu (3 + ? = 7),
+  so sánh và nhận biết số tới 100, số liền trước/liền sau, quy luật (hình và dãy số đếm thêm 2, 5, 10).
+  Chữ cái cấp 2: chữ ghép đầu từ (ch, nh, ng, th, tr, kh, ph, gi).
+- Tháp Đố vui: câu đố về con vật, đồ vật; tìm cái không cùng nhóm; ai làm nghề gì.
 - Nhiệm vụ mỗi ngày: 15 câu đúng ngay. Chuỗi ngày học liên tiếp hiện ở trang chủ.
 - Nhạc nền khi leo tháp bật/tắt bằng nút 🎵 ở góc trên.
 
