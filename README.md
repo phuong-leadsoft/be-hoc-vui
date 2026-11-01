@@ -11,6 +11,19 @@ python3 serve.py
 Mở địa chỉ được in ra (ví dụ `http://192.168.1.154:8080`) trên tivi LG, iPad hoặc máy tính trong cùng mạng Wi‑Fi.
 Hồ sơ của bé được lưu vào `data/profiles.json` trên máy Mac (và trong trình duyệt), nên hôm sau mở trên thiết bị nào cũng học tiếp được.
 
+## Mở trên tivi qua Internet (GitHub Pages)
+
+Mỗi khi nhánh `main` thay đổi, app được đưa lên **https://phuong-leadsoft.github.io/be-hoc-vui/**
+(workflow `.github/workflows/pages.yml`). Mở địa chỉ này bằng trình duyệt Web của tivi rồi lưu dấu trang,
+không cần bật máy Mac. Gõ địa chỉ bằng remote thì chậm; có thể mở từ máy Mac bằng:
+
+```bash
+uv run tools/lgtv.py open https://phuong-leadsoft.github.io/be-hoc-vui/
+```
+
+Bản này không đồng bộ hồ sơ với `serve.py` (trang https không được gọi máy chủ http trong nhà):
+tiến độ của bé chỉ lưu trong trình duyệt của tivi.
+
 ## Cài lên tivi LG (biểu tượng trên launcher)
 
 Cần bật Developer Mode trên tivi: cài app **Developer Mode** từ LG Content Store, đăng nhập tài khoản
