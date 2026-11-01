@@ -503,6 +503,29 @@ button:disabled { opacity: .4; cursor: default; }
 .cert-ava { font-size: 5rem; margin: 1.6rem 0 .4rem; }
 .cert-date { font-size: 1.2rem; color: #64748b; }
 
+/* ---------- Nổ lớn ở các mốc (càng cao càng mạnh: --pw 1–10) ---------- */
+body.quake #app, body.quake .overlay { animation: quake .12s linear var(--quake-n, 3); }
+.whiteout { position: fixed; inset: 0; z-index: 39; pointer-events: none; background: #fff; animation: whiteout .55s ease-out forwards; }
+.slam { position: fixed; inset: 0; z-index: 38; pointer-events: none; display: grid; place-items: center; overflow: hidden; animation: slam-out 2.3s forwards; }
+.slam-rays {
+  position: absolute; left: 50%; top: 45%; width: 160vmax; height: 160vmax; margin: -80vmax 0 0 -80vmax;
+  background: repeating-conic-gradient(rgba(253, 224, 71, .55) 0 8deg, rgba(253, 224, 71, 0) 8deg 20deg);
+  animation: spin calc(14s / var(--pw, 1)) linear infinite, rays-in .4s ease-out;
+}
+.slam.gold .slam-rays { background: repeating-conic-gradient(rgba(251, 191, 36, .75) 0 8deg, rgba(249, 115, 22, .15) 8deg 20deg); }
+.slam.rainbow .slam-rays { background: repeating-conic-gradient(rgba(244, 63, 94, .6) 0 10deg, rgba(250, 204, 21, .6) 10deg 20deg, rgba(34, 197, 94, .6) 20deg 30deg, rgba(59, 130, 246, .6) 30deg 40deg, rgba(168, 85, 247, .6) 40deg 50deg); }
+.slam-text {
+  position: relative; top: -5%; font-size: calc(7rem + var(--pw, 1) * .5rem); font-weight: 800; line-height: 1; white-space: nowrap; color: #fff;
+  -webkit-text-stroke: .35rem #ea580c; text-shadow: 0 .6rem 0 #9a3412, 0 0 2.5rem #fde047;
+  animation: slam-in .5s cubic-bezier(.2, 1.6, .5, 1) backwards;
+}
+.slam.gold .slam-text { color: #fde047; -webkit-text-stroke-color: #b45309; }
+.slam.rainbow .slam-text {
+  color: transparent; background: linear-gradient(90deg, #f43f5e, #f59e0b, #facc15, #22c55e, #06b6d4, #a855f7, #f43f5e) 0 0 / 200% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-stroke: .3rem #fff; text-shadow: none;
+  filter: drop-shadow(0 .6rem 0 rgba(0, 0, 0, .3)) drop-shadow(0 0 2rem #fde047); animation: slam-in .5s cubic-bezier(.2, 1.6, .5, 1) backwards, shimmer 1s linear infinite;
+}
+
 /* ---------- Khung cảnh mở được ở các mốc (đổi nền cả app) ---------- */
 body { transition: background .8s; }
 .sun, .hills path, .cloud { transition: background .8s, fill .8s, opacity .8s; }
@@ -595,6 +618,16 @@ body[data-theme="sea"] .bg::before {
 @keyframes gift-shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg) scale(1.04); } 75% { transform: rotate(8deg) scale(1.04); } }
 @keyframes gift-open { to { transform: scale(1.6) translateY(-2rem); opacity: 0; } }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes quake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(calc(var(--quake, .6rem) * -1), calc(var(--quake, .6rem) * .5)) rotate(-.4deg); }
+  50% { transform: translate(var(--quake, .6rem), calc(var(--quake, .6rem) * -.6)) rotate(.4deg); }
+  75% { transform: translate(calc(var(--quake, .6rem) * -.5), var(--quake, .6rem)); }
+}
+@keyframes whiteout { from { opacity: .95; } to { opacity: 0; } }
+@keyframes slam-in { from { transform: scale(4) rotate(-10deg); opacity: 0; } 60% { opacity: 1; } }
+@keyframes rays-in { from { transform: scale(0); } }
+@keyframes slam-out { 0%, 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1.15); } }
 @keyframes egg-knock { 0%, 100% { transform: rotate(calc(var(--p, 0) * 10deg)); } 30% { transform: rotate(calc(var(--p, 0) * 30deg - 14deg)) scale(1.06); } 65% { transform: rotate(calc(var(--p, 0) * -10deg + 12deg)); } }
 @keyframes disco-dance { 0%, 100% { transform: translateY(0) rotate(-10deg); } 25% { transform: translateY(-2.5rem) rotate(0) scale(1.1); } 50% { transform: translateY(0) rotate(10deg); } 75% { transform: translateY(-1.2rem) rotate(0); } }
 @keyframes fall { to { transform: translateY(calc(100vh + 6rem)) rotate(360deg); } }
@@ -618,5 +651,6 @@ body[data-theme="sea"] .bg::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cloud, .sun, .title span, .tower-icon, .emo.big, .disco-lights { animation: none !important; }
+  .cloud, .sun, .title span, .tower-icon, .emo.big, .disco-lights, .slam-rays { animation: none !important; }
+  body.quake #app, body.quake .overlay { animation: none !important; }
 }

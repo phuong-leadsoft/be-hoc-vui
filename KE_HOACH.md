@@ -83,6 +83,16 @@ Phụ huynh thấy câu hỏi quá dễ với bé 5 tuổi. Đã làm:
 (tivi thường không có giọng Việt nên sẽ im lặng). Chạy:
 `git pull && node tools/build.js && git add audio && git commit -m "Giọng đọc cho câu hỏi mới" && git push`
 
+### 4.3c Nổ lớn ở các mốc, càng cao càng dữ dội: ĐÃ XONG (2026-11-01)
+
+- `megaBurst(title, power)` với power = tầng/10 (1–10): rung màn hình (`body.quake`, biên độ tăng theo power),
+  chớp trắng, sóng nổ, chữ "TẦNG 30!" đập xuống trên nền tia sáng xoay (từ mốc 50 vàng đậm, từ mốc 80 cầu vồng,
+  tầng 100 là "VÔ ĐỊCH!"), 1–4 đợt pháo hoa bắn từ dưới lên (mỗi đợt 6–15 quả, các kiểu peony, willow, ring,
+  crackle), ống pháo giấy, mưa tiền vàng, tiếng nổ trầm (`Sfx.boom`), tiếng rít (`Sfx.whistle`), lách tách.
+- Dùng khi chạm mốc, khi mở từng món quà (theo mốc hiện tại), mưa sao và màn vô địch (4 lần liền, mức 10).
+- `Fx.quality` tự giảm số mảnh nếu vẽ chậm (dưới ~33 hình/giây), tự tăng lại khi mượt, lưu trong
+  localStorage `be-hoc-vui:fxq`. Tối đa ~900 mảnh. Cần xem thử trên tivi thật.
+
 ### 4.4 Máy chủ tự chạy khi bật Mac (phụ huynh đã đồng ý)
 
 - Repo đang được làm trong một thư mục tạm; cần clone/đặt ở chỗ cố định, **không** trong Desktop/Documents/Downloads

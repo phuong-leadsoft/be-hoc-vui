@@ -391,6 +391,25 @@
         if (i % 2 === 0) this.tone(mf(lead[(i / 2) % 8] + (bar === 3 ? 2 : 0)), t, e * 1.6, 'triangle', 0.06);
       }
     },
+    // Tiếng nổ lớn ở mốc: tiếng trầm rung sàn, tiếng ầm và tiếng lách tách.
+    boom() {
+      if (!this.ctx) return;
+      this.tone(70, 0, 0.9, 'sine', 0.7, 28);
+      this.tone(140, 0, 0.3, 'triangle', 0.3, 50);
+      this.noiseHit(0, 1.4, 500, 'lowpass', 0.6);
+      this.noiseHit(0, 0.25, 3000, 'bandpass', 0.3);
+      this.crackle(0.35, 20);
+    },
+    // Pháo hoa bay lên: tiếng rít cao dần.
+    whistle() {
+      if (!this.ctx) return;
+      const f = 500 + Math.random() * 300;
+      this.tone(f, 0, 0.75, 'sine', 0.035, f * 3);
+      this.noiseHit(0, 0.7, 4000, 'highpass', 0.04);
+    },
+    crackle(start, n) {
+      for (let i = 0; i < n; i++) this.tone(1800 + Math.random() * 4000, start + Math.random() * 0.7, 0.03, 'square', 0.025);
+    },
     // Tiếng tên lửa phóng: tiếng xì mạnh dần rồi bay xa.
     whoosh() {
       const c = this.ctx;
@@ -598,6 +617,9 @@
     parts: [],
     running: false,
     last: 0,
+    // Tự giảm số mảnh nếu máy (tivi) vẽ không kịp, và nhớ mức đó cho lần sau.
+    quality: Math.max(0.35, Math.min(1, +readLocal('be-hoc-vui:fxq', 1) || 1)),
+    ema: 1 / 60,
 
     ensure() {
       if (this.canvas) return;
@@ -615,8 +637,8 @@
       window.addEventListener('resize', fit);
     },
 
-    add(p) {
-      if (this.parts.length < 700) this.parts.push(p);
+    add(p, force) {
+      if (force || this.parts.length < 900 * this.quality) this.parts.push(p);
     },
 
     // Pháo giấy bắn từ (x, y) theo góc a0..a1 độ (-90 = thẳng lên), tốc độ s0..s1 rem/giây.
@@ -643,11 +665,45 @@
       this.confetti(innerWidth, innerHeight, n, -138, -102, 24, 38);
     },
 
-    // Một quả pháo hoa nổ thành vòng tia sáng.
-    firework(x, y, n) {
+    // Một quả pháo hoa nổ: peony (vòng tia nhiều màu), willow (liễu vàng rủ xuống), ring (vòng tròn đều),
+    // crackle (nổ xong còn lách tách).
+    firework(x, y, n, type) {
       this.ensure();
       const u = rem();
       const color = pick(FX_COLORS);
+      n = Math.round(n * this.quality);
+      if (type === 'willow') {
+        for (let i = 0; i < n; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const s = (4 + Math.random() * 6) * u;
+          this.add({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: 3.5 * u, drag: 0.965, size: 0.18 * u, rot: 0, vr: 0,
+            color: Math.random() < 0.3 ? '#fff7ed' : '#fbbf24', shape: 'spark', twinkle: true, life: 2 + Math.random() * 1.2, fade: 1 });
+        }
+      } else if (type === 'ring') {
+        const c2 = pick(FX_COLORS);
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          const inner = i % 3 === 0;
+          const s = (inner ? 5 : 10) * u;
+          this.add({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: 4 * u, drag: 0.95, size: 0.24 * u, rot: 0, vr: 0,
+            color: inner ? c2 : color, shape: 'spark', life: 1.3 + Math.random() * 0.3, fade: 0.5 });
+        }
+      } else if (type === 'crackle') {
+        for (let i = 0; i < n; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const s = (5 + Math.random() * 7) * u;
+          this.add({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: 6 * u, drag: 0.95, size: 0.2 * u, rot: 0, vr: 0,
+            color: '#fef9c3', shape: 'spark', life: 0.6 + Math.random() * 0.4, fade: 0.2,
+            onDie: i % 2 ? null : p => this.sparkle(p.x, p.y, 3) });
+        }
+        Sfx.crackle(0.6, 14);
+      }
+      if (type && type !== 'peony') {
+        this.ring(x, y, color);
+        this.start();
+        return;
+      }
+      this.ring(x, y, color);
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2 + Math.random() * 0.12;
         const s = (8 + Math.random() * 4.5) * u;
@@ -655,6 +711,66 @@
           x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: 7 * u, drag: 0.94,
           size: (0.2 + Math.random() * 0.14) * u, rot: 0, vr: 0, color: Math.random() < 0.25 ? '#fff' : color,
           shape: 'spark', life: 1.1 + Math.random() * 0.7, fade: 0.5,
+        });
+      }
+      this.start();
+    },
+
+    // Vài tia lấp lánh nhỏ (dùng cho pháo lách tách).
+    sparkle(x, y, n) {
+      const u = rem();
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        this.add({ x, y, vx: Math.cos(a) * 3 * u, vy: Math.sin(a) * 3 * u, g: 2 * u, drag: 0.9, size: 0.14 * u, rot: 0, vr: 0,
+          color: '#fff', shape: 'spark', twinkle: true, life: 0.3 + Math.random() * 0.3, fade: 0.3 });
+      }
+    },
+
+    // Quầng sáng lớn lóe lên chỗ pháo nổ (để nhìn rõ cả trên nền trời sáng).
+    glow(x, y, color) {
+      const u = rem();
+      this.add({ x, y, vx: 0, vy: 0, g: 0, drag: 1, r: 2 * u, grow: 16 * u, size: 0, rot: 0, vr: 0,
+        color, shape: 'glow', life: 0.35, max: 0.35, fade: 0.35 }, true);
+    },
+
+    // Vòng sóng nổ lan ra.
+    ring(x, y, color, grow, width) {
+      this.ensure();
+      const u = rem();
+      this.add({ x, y, vx: 0, vy: 0, g: 0, drag: 1, r: u, grow: (grow || 22) * u, size: (width || 0.5) * u, rot: 0, vr: 0,
+        color: color || '#fff', shape: 'ring', life: 0.6, max: 0.6, fade: 0.6 }, true);
+      this.start();
+    },
+
+    // Quả pháo bay từ dưới đáy màn hình lên độ cao y rồi nổ.
+    rocket(x, y, type) {
+      this.ensure();
+      const u = rem();
+      const g = 14 * u;
+      const v = Math.sqrt(2 * g * Math.max(u, innerHeight - y));
+      this.add({
+        x, y: innerHeight, vx: (Math.random() - 0.5) * 3 * u, vy: -v, g, drag: 1, size: 0.4 * u, rot: 0, vr: 0,
+        color: '#fff7ed', shape: 'dot', trail: true, life: v / g, fade: 0.01,
+        onDie: p => {
+          this.glow(p.x, p.y, type === 'willow' ? '#fde68a' : pick(FX_COLORS));
+          this.firework(p.x, p.y, type === 'willow' ? 80 : 70, type);
+          Sfx.bang();
+        },
+      }, true);
+      Sfx.whistle();
+      this.start();
+    },
+
+    // Mưa tiền vàng xoay lật rơi từ trên xuống.
+    coins(n) {
+      this.ensure();
+      const u = rem();
+      n = Math.round(n * this.quality);
+      for (let i = 0; i < n; i++) {
+        this.add({
+          x: Math.random() * innerWidth, y: -u * (1 + Math.random() * 8), vx: (Math.random() - 0.5) * 4 * u, vy: (4 + Math.random() * 6) * u,
+          g: 18 * u, drag: 0.99, size: (0.9 + Math.random() * 0.5) * u, rot: Math.random() * 6, vr: 6 + Math.random() * 8,
+          color: '#facc15', shape: 'coin', life: 2.6 + Math.random(), fade: 0.4,
         });
       }
       this.start();
@@ -674,16 +790,75 @@
       const dpr = this.dpr;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.parts = this.parts.filter(p => (p.life -= dt) > 0);
+      // Đo tốc độ vẽ: chậm quá (dưới ~33 hình/giây khi đang nhiều mảnh) thì giảm dần số mảnh.
+      this.ema = this.ema * 0.92 + dt * 0.08;
+      if (this.parts.length > 200 && this.ema > 0.03 && this.quality > 0.35) {
+        this.quality = Math.max(0.35, this.quality - 0.01);
+        writeLocal('be-hoc-vui:fxq', this.quality);
+      } else if (this.parts.length > 200 && this.ema < 0.019 && this.quality < 1) {
+        this.quality = Math.min(1, this.quality + 0.002);   // vẽ mượt trở lại thì tăng dần
+      }
+      const dead = [];
+      this.parts = this.parts.filter(p => {
+        if ((p.life -= dt) > 0) return true;
+        if (p.onDie) dead.push(p);
+        return false;
+      });
+      dead.forEach(p => p.onDie(p));
+      const trail = [];
+      const u = rem();
       for (const p of this.parts) {
+        if (p.trail) {
+          trail.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * u, vy: Math.random() * 2 * u, g: 4 * u, drag: 0.9, size: 0.22 * u,
+            rot: 0, vr: 0, color: Math.random() < 0.5 ? '#fde68a' : '#fb923c', shape: 'dot', life: 0.3 + Math.random() * 0.25, fade: 0.3 });
+        }
         const k = Math.pow(p.drag, dt * 60);
         p.vx *= k;
         p.vy = p.vy * k + p.g * dt;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.rot += p.vr * dt;
-        ctx.globalAlpha = Math.min(1, p.life / p.fade);
+        ctx.globalAlpha = Math.min(1, p.life / p.fade) * (p.twinkle ? 0.35 + Math.random() * 0.65 : 1);
         ctx.fillStyle = ctx.strokeStyle = p.color;
+        if (p.shape === 'ring') {
+          p.r += p.grow * dt;
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.lineWidth = Math.max(0.5, p.size * (p.life / p.max));
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.stroke();
+          continue;
+        }
+        if (p.shape === 'glow') {
+          p.r += p.grow * dt;
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.globalAlpha = 0.55 * (p.life / p.max);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 0.9 * (p.life / p.max);
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+          continue;
+        }
+        if (p.shape === 'coin') {
+          const w = Math.cos(p.rot);
+          ctx.setTransform(dpr * w, 0, 0, dpr, dpr * p.x, dpr * p.y);
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size * 0.5, 0, Math.PI * 2);
+          ctx.fillStyle = w > 0 ? '#facc15' : '#eab308';
+          ctx.fill();
+          ctx.lineWidth = p.size * 0.1;
+          ctx.strokeStyle = '#a16207';
+          ctx.stroke();
+          ctx.fillStyle = '#fef08a';
+          ctx.beginPath();
+          ctx.arc(-p.size * 0.12, -p.size * 0.12, p.size * 0.18, 0, Math.PI * 2);
+          ctx.fill();
+          continue;
+        }
         if (p.shape === 'spark') {
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           ctx.lineWidth = p.size;
@@ -716,6 +891,7 @@
         }
       }
       ctx.globalAlpha = 1;
+      trail.forEach(p => this.add(p));
       if (this.parts.length) {
         requestAnimationFrame(tt => this.tick(tt));
       } else {
@@ -767,6 +943,58 @@
       el.classList.add(el === stage ? 'boom' : 'party');
     });
   }
+
+  // Nổ lớn kiểu game ở các mốc, càng lên cao càng dữ dội. power 1–10 (tầng 10 → 1, tầng 100 → 10):
+  // rung màn hình, chớp trắng, sóng nổ, chữ lớn đập xuống, nhiều đợt pháo hoa bắn từ dưới lên,
+  // ống pháo giấy và mưa tiền vàng; số pháo, số đợt, độ rung và tiếng nổ đều tăng theo power.
+  function megaBurst(title, power) {
+    const pw = Math.max(1, Math.min(10, power || 1));
+    const cx = innerWidth / 2;
+    const cy = innerHeight * 0.42;
+    const q = Fx.quality;
+    const body = document.body;
+    body.style.setProperty('--quake', (0.4 + pw * 0.12) + 'rem');
+    body.style.setProperty('--quake-n', String(2 + Math.ceil(pw / 2)));
+    body.classList.remove('quake');
+    body.getBoundingClientRect();
+    body.classList.add('quake');
+    setTimeout(() => body.classList.remove('quake'), 500 + pw * 80);
+    fxEl('whiteout', '', 600);
+    Sfx.boom();
+    const rings = 2 + Math.ceil(pw / 3);
+    for (let i = 0; i < rings; i++) {
+      setTimeout(() => Fx.ring(cx, cy, ['#fff', '#fde047', '#f97316', '#ec4899', '#22d3ee'][i % 5], 26 + i * 6 + pw, 0.9 - i * 0.12), i * 130);
+    }
+    Fx.firework(cx, cy, 60 + pw * 8, 'peony');
+    if (title) {
+      const tier = pw >= 8 ? 'rainbow' : pw >= 5 ? 'gold' : '';
+      fxEl('slam ' + tier, `--pw:${pw}`, 2300, `<div class="slam-rays"></div><span class="slam-text">${esc(title)}</span>`);
+    }
+    Fx.cannons(Math.round((40 + pw * 8) * q));
+    // Các đợt pháo hoa: tầng thấp 1 đợt, tầng cao tới 4 đợt, mỗi đợt nhiều quả hơn.
+    const types = pw >= 4 ? ['peony', 'willow', 'ring', 'crackle'] : ['peony', 'ring', 'willow'];
+    const waves = 1 + Math.floor(pw / 3);
+    const perWave = 5 + pw;
+    for (let w = 0; w < waves; w++) {
+      const t0 = 250 + w * 1500;
+      for (let i = 0; i < perWave; i++) {
+        setTimeout(() => {
+          Fx.rocket(innerWidth * (0.08 + Math.random() * 0.84), innerHeight * (0.1 + Math.random() * 0.3), types[(i + w) % types.length]);
+        }, t0 + i * Math.max(90, 260 - pw * 16));
+      }
+      if (w) {
+        setTimeout(() => {
+          Sfx.boom();
+          Fx.cannons(Math.round((30 + pw * 6) * q));
+        }, t0);
+      }
+    }
+    setTimeout(() => Fx.coins(25 + pw * 8), 450);
+    if (pw >= 7) setTimeout(() => Fx.coins(20 + pw * 5), 1900);
+  }
+
+  // Độ dữ dội của quà theo mốc hiện tại.
+  const giftPower = () => (game ? Math.max(1, Math.round(game.floor / SEGMENT)) : 1);
 
   /* ================= Màn hình mở đầu, chọn bé, tạo hồ sơ ================= */
 
@@ -1671,6 +1899,7 @@
     if (theme) applyTheme();
     Sfx.fanfare();
     celebrate(ov.querySelector('.prize-box'), 3);
+    megaBurst(null, giftPower());
     await Voice.say(C.phrases[GRANT_INFO[gr.kind][1]]);
     return ep === epoch;
   }
@@ -1709,7 +1938,9 @@
         <div class="prize-box"><div class="gift">${emo(floor === FLOORS ? '🏆' : '🎁')}</div></div>
       </div>`;
     ov.classList.add('show');
-    celebrate(ov.querySelector('.prize-box'), 2);
+    megaBurst(floor === FLOORS ? 'VÔ ĐỊCH!' : `TẦNG ${floor}!`, floor / SEGMENT);
+    await wait(900);
+    if (ep !== epoch) return;
     await Voice.say(C.phrases.floorReached(floor));
     if (ep !== epoch) return;
     for (const step of GIFT_PLAN[floor]) {
@@ -1869,6 +2100,7 @@
     card.insertAdjacentHTML('beforeend', `<p class="reward-note">+${n} sao</p>`);
     Sfx.fanfare();
     celebrate(btn, 3);
+    megaBurst(null, giftPower());
     await Voice.say(C.phrases.starRainDone);
     return ep === epoch;
   }
@@ -1937,6 +2169,7 @@
       setTimeout(() => {
         if (ep !== epoch) return;
         celebrate(card, 3);
+        megaBurst(null, 10);
         if (i) Sfx.fanfare();
       }, i * 2600);
     }
