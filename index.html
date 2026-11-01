@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Bé Học Vui</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="bg" aria-hidden="true">
+  <div class="sun"></div>
+  <div class="cloud" style="--top:7%;--dur:80s;--delay:-20s;--s:1.1"></div>
+  <div class="cloud" style="--top:20%;--dur:110s;--delay:-70s;--s:.8"></div>
+  <div class="cloud" style="--top:12%;--dur:95s;--delay:-45s;--s:.6"></div>
+  <svg class="hills" viewBox="0 0 1600 300" preserveAspectRatio="none">
+    <path d="M0 170 C200 100 420 110 620 165 C820 220 1020 110 1220 130 C1420 150 1520 190 1600 175 L1600 300 L0 300 Z" fill="#86efac"/>
+    <path d="M0 225 C250 185 470 205 720 238 C970 270 1170 198 1400 212 C1500 220 1560 232 1600 228 L1600 300 L0 300 Z" fill="#4ade80"/>
+  </svg>
+</div>
+
+<main id="app"></main>
+
+<template id="owl-tpl">
+  <svg class="owl" viewBox="0 0 140 150" aria-hidden="true">
+    <g class="owl-all">
+      <g fill="#f97316"><ellipse cx="54" cy="141" rx="11" ry="5"/><ellipse cx="86" cy="141" rx="11" ry="5"/></g>
+      <path class="wing wing-l" d="M30 70 Q6 96 22 126 Q36 110 42 88 Z" fill="#c2410c"/>
+      <path class="wing wing-r" d="M110 70 Q134 96 118 126 Q104 110 98 88 Z" fill="#c2410c"/>
+      <path d="M36 36 L30 8 L56 26 Z" fill="#f59e0b"/>
+      <path d="M104 36 L110 8 L84 26 Z" fill="#f59e0b"/>
+      <path d="M70 20 C110 20 118 55 116 86 C114 122 96 141 70 141 C44 141 26 122 24 86 C22 55 30 20 70 20 Z" fill="#f59e0b"/>
+      <ellipse cx="70" cy="106" rx="31" ry="30" fill="#fde68a"/>
+      <path d="M57 100 q4 5 8 0 M69 100 q4 5 8 0 M63 112 q4 5 8 0 M75 112 q4 5 8 0" stroke="#f59e0b" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <ellipse cx="34" cy="80" rx="7" ry="4" fill="#fb7185" opacity=".55"/>
+      <ellipse cx="106" cy="80" rx="7" ry="4" fill="#fb7185" opacity=".55"/>
+      <g class="eyes">
+        <circle cx="51" cy="58" r="20" fill="#fff"/>
+        <circle cx="89" cy="58" r="20" fill="#fff"/>
+        <circle cx="53" cy="60" r="9.5" fill="#1f2937"/>
+        <circle cx="87" cy="60" r="9.5" fill="#1f2937"/>
+        <circle cx="56" cy="56" r="3.2" fill="#fff"/>
+        <circle cx="90" cy="56" r="3.2" fill="#fff"/>
+      </g>
+      <path d="M63 73 L77 73 L70 85 Z" fill="#f97316"/>
+    </g>
+  </svg>
+</template>
+
+<script src="content.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
