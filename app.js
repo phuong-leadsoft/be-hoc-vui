@@ -2848,6 +2848,28 @@
     if (best.dataset.say) Voice.say(best.dataset.say);
   }
 
+  /* Nút Back trên trình duyệt tivi: trình duyệt hiểu là "lùi trang" nên thoát mất app.
+     Giữ sẵn một mục lịch sử "bẫy" (pushState): bấm Back chỉ lùi về mục đó, app bắt sự kiện popstate,
+     làm như lùi một bước trong app rồi đặt lại bẫy. Chrome bỏ qua mục lịch sử tạo ra khi người dùng chưa
+     bấm gì, nên bẫy được đặt lại sau mỗi lần bé bấm phím hoặc chạm màn hình.
+     Ở màn hình mở đầu thì không đặt lại bẫy: bấm Back lần nữa là thoát app như bình thường. */
+  let trapFresh = false;     // bẫy hiện tại được đặt sau một lần bấm của người dùng
+  let lastKeyBack = 0;
+  function armBack(withGesture) {
+    if (withGesture && trapFresh) return;
+    try {
+      history.pushState({ bhv: Date.now() }, '');
+      trapFresh = !!withGesture;
+    } catch (e) { /* trình duyệt chặn lịch sử: bỏ qua */ }
+  }
+  window.addEventListener('popstate', () => {
+    trapFresh = false;
+    if (app.className === 'screen-splash') return;
+    armBack(false);
+    // Một số tivi gửi cả phím 461 lẫn popstate cho cùng một lần bấm: chỉ lùi một lần.
+    if (Date.now() - lastKeyBack > 700) goBack();
+  });
+
   document.addEventListener('keydown', e => {
     const k = e.keyCode;
     const typing = document.activeElement && document.activeElement.tagName === 'INPUT';
@@ -2857,9 +2879,11 @@
     }
     if (k === 461 || k === 27 || (k === 8 && !typing)) {   // 461 = nút Back của remote LG
       e.preventDefault();
+      lastKeyBack = Date.now();
       goBack();
       return;
     }
+    armBack(true);
     const dir = { 37: 'left', 38: 'up', 39: 'right', 40: 'down' }[k];
     if (!dir || (typing && (dir === 'left' || dir === 'right'))) return;
     e.preventDefault();
@@ -2867,6 +2891,7 @@
   });
 
   document.addEventListener('pointerdown', () => {
+    armBack(true);
     keyMode = false;
     document.body.classList.remove('keys');
   });
