@@ -31,7 +31,8 @@ Khi thử, nên chạy app ở cổng tĩnh khác (`python3 -m http.server 8082`
 
 ## 3. Luật chơi hiện có (đã xong, đã thử)
 
-- Tháp **10 tầng** mỗi môn (Toán, Chữ cái, Tự nhiên, Tổng hợp), 3 tim, quyền trợ giúp Hỏi Cú và Đổi câu (mỗi tháp 1 lần).
+- Tháp **100 tầng** mỗi môn (Toán, Chữ cái, Tự nhiên, Tổng hợp), mốc an toàn có quà mỗi 10 tầng, 3 tim,
+  quyền trợ giúp Hỏi Cú và Đổi câu (mỗi đoạn 10 tầng 1 lần). Chi tiết ở mục 4.1–4.3.
 - Chống đoán bừa: khóa đáp án tới khi đọc xong câu hỏi; chọn rồi bấm "Chốt!" (hoặc bấm lại ô đó), trống hồi hộp;
   sai lần 1 mất tim, khóa 3 giây, xáo đáp án; sai lần 2 thì cú dạy lại (đếm cùng, chỉ đáp án), không lên tầng, câu
   quay lại sau 2 câu; chỉ đúng ngay mới có sao; toán dùng bàn phím số 0–10.
@@ -42,63 +43,30 @@ Khi thử, nên chạy app ở cổng tĩnh khác (`python3 -m http.server 8082`
 
 ## 4. Việc còn dang dở (làm theo thứ tự)
 
-### 4.1 Tháp 100 tầng, lưu tiến độ, quay về mốc (đang làm dở)
+### 4.1–4.3 Tháp 100 tầng, quà ở các mốc, nhạc: ĐÃ XONG (2026-11-01)
 
-Trạng thái: `content.js` **đã có** dữ liệu và câu nói mới (`TENS`, `hats`, `pets`, `themes`, `golden`,
-`phrases.resume`, `backToCheckpoint`, `backToStart`, `floorReached(n)`, `hat`, `eggIntro`, `pet`, `theme`, `party`,
-`pickIntro`, `golden`, `starRainIntro`, `starRainDone`, `rocket`, `champion`), audio và hình đã tạo xong.
-`app.js` **chưa dùng** chúng: vẫn là tháp 10 tầng, mốc ở tầng 5 và 10.
+Đã làm trong `app.js` và `style.css` đúng theo kế hoạch đã thống nhất, đã chạy thử trong Chromium (Playwright):
+- `FLOORS = 100`, `SEGMENT = 10`. Tiến độ từng tháp lưu trong `profile.climbs[môn] = {floor, hearts, owl, swap}`
+  (`saveClimb()` sau mỗi lần trả lời, dùng trợ giúp, thoát). Vào lại tháp thì leo tiếp, nói `phrases.resume`.
+- Hết tim: `outOfHearts()` đưa về mốc gần nhất, nạp đầy tim và trợ giúp, hộp "Hết tim rồi!" (Leo tiếp / Về nhà).
+- Mốc: `milestone(tầng)` chạy các bước trong `GIFT_PLAN` (mỗi bước xong có nút "Tiếp tục"); `grant(kind)` tặng món,
+  hết món thì đổi sang hình dán vàng, hết nữa thì +3 sao. Các mini-game: `eggGame`, `partyGift`, `starRain`,
+  `rocketGift`, `championGift`. Tầng 100: `crownTower()` ghi `best = 100`, `wins++`, xóa tiến độ, rồi `endTower()`.
+- Thang bên phải chỉ hiện đoạn 10 tầng đang leo (`renderLadder()`), thanh tiến độ "37/100".
+- Bạn thú đội mũ, thú cưng đi cạnh: `avatarHtml(p, withPet)`. Khung cảnh: `applyTheme()` đặt `body[data-theme]`.
+- Trang chủ: 10 vạch tiến độ, "Đang ở tầng X/100", nút Đổi mũ / Thú cưng / Khung cảnh (chỉ hiện khi đã có món).
+  Bộ sưu tập có các ngăn Hình dán, Hình dán vàng, Mũ, Thú cưng, Khung cảnh. Trang Bố mẹ có tầng hiện tại và cao nhất.
+- Âm thanh (Web Audio, không cần file): `Sfx.fanfare()` (nhạc thưởng), `Sfx.dance()` (lễ hội tầng 50),
+  `Sfx.whoosh()` (tên lửa), `Music` (nhạc nền 116 BPM, hạ nhỏ khi cú đọc, tạm dừng khi mở quà, nút 🎵 lưu trong
+  localStorage `be-hoc-vui:music`).
+- Kiểm thử nhanh trong console (`index.html?debug`): `BHV.setFloor(39)` rồi trả lời đúng để tới mốc 40,
+  hoặc `BHV.gift(50)` để mở thẳng quà của một mốc.
 
-Cần làm trong `app.js`:
-- `FLOORS = 100`, mỗi `SEGMENT = 10` tầng là một mốc an toàn (bỏ `MILESTONES`).
-- `normalizeProfile`: thêm `climbs` (tiến độ từng tháp: `{floor, hearts, owl, swap}`), `hats`, `hat`, `pets`, `pet`,
-  `themes`, `theme`, `golden`.
-- Lưu tiến độ sau mỗi câu (`saveClimb()`); vào tháp thì leo tiếp đúng tầng, tim và trợ giúp đã lưu (nói `phrases.resume`).
-  Thoát giữa chừng không được nạp lại tim (tránh lách luật).
-- Tới mỗi mốc (tầng 10, 20, …): mở quà (mục 4.2), rồi nạp đầy tim, trợ giúp mỗi đoạn 10 tầng 1 lần, xóa `seen`.
-- Hết tim: **không kết thúc tháp**, mà quay về mốc gần nhất (`floor = Math.floor(floor/10)*10`), tim đầy lại,
-  hiện hộp "Hết tim rồi!" với nút Leo tiếp / Về nhà (nói `backToCheckpoint` hoặc `backToStart` nếu chưa qua mốc nào).
-- Lên tầng 100: màn nhà vô địch, rồi reset tiến độ tháp đó về 0, `best = 100`.
-- Thang tầng bên phải chỉ hiện **đoạn 10 tầng hiện tại** (ví dụ 31–40), mốc trên cùng là 🎁 bí ẩn (tầng 100 là 🏆),
-  dưới cùng là mốc đã qua (⛳ 30); thêm thanh tiến độ "37/100".
-  Khi vừa chạm mốc, giữ đoạn cũ (bé đứng trên đỉnh) tới khi mở quà xong mới chuyển sang đoạn mới.
-- Độ khó theo tầng: tầng 1–20 dễ hơn cấp của bé một bậc, 21–60 đúng cấp, 61–100 khó hơn một bậc.
-- Trang chủ: thẻ tháp hiện "Đang ở tầng X/100" và 10 vạch (mỗi vạch 10 tầng); trang Bố mẹ: tầng cao nhất /100.
-- Câu dừng tháp: "Lần sau con leo tiếp từ tầng X."
-
-### 4.2 Quà ở các mốc: càng cao càng bất ngờ, không chỉ là hình dán
-
-Mốc luôn hiện là hộp 🎁 bí ẩn. Kế hoạch đã thống nhất với phụ huynh:
-
-| Tầng | Quà | Ghi chú cài đặt |
-|---|---|---|
-| 10 | Hộp quà → hình dán | dùng lại màn mở hộp hiện có |
-| 20 | Mũ mới cho bạn thú (avatar) | `hats`; tự đội mũ mới; mũ hiện chồng lên avatar ở mọi chỗ (thẻ hồ sơ, trang chủ, nhân vật trên thang) |
-| 30 | 🥚 Trứng thần kỳ | mini-game: bấm OK/chạm liên tục ~12 lần, trứng lắc và nứt dần, nở ra **thú cưng** (`pets.common`) đi cạnh avatar |
-| 40 | 🌅 Khung cảnh mới | `themes` theo thứ tự; đổi nền cả app (`body[data-theme]`): hoàng hôn, đêm sao, vũ trụ, đại dương |
-| 50 | 🎉 Lễ hội nửa đường | màn disco ~5 giây (đèn xoay, avatar + cú + thú cưng nhảy, nhạc), rồi chọn 1 trong 3 hộp bí mật → **hình dán vàng** (`golden`) |
-| 60 | 🥚 Trứng hiếm | như tầng 30, ~16 lần bấm, nở `pets.rare` (kỳ lân, rồng, khủng long) |
-| 70 | 🌙 Khung cảnh + mũ mới | hai quà liên tiếp |
-| 80 | ⭐ Mưa sao | sao rơi trên nền; bấm liên tục trong 8 giây, mỗi lần +1 sao (tối đa 30) |
-| 90 | 🚀 Tên lửa | avatar cưỡi tên lửa bay chéo màn hình, đếm "Ba, hai, một, phóng!", rồi mở khung cảnh tiếp theo |
-| 100 | 🏆 Nhà vô địch | cúp, vương miện 👑 (đội luôn), giấy khen có tên bé, môn, ngày; pháo hoa lớn nhất |
-
-- Món đã có hết thì thay bằng hình dán vàng, hết nữa thì +3 sao (khớp câu `phrases.bonus`).
-- Mỗi lần có quà phải có **nhạc chiến thắng bùng nổ** (mục 4.3) và `celebrate(…, 3)`.
-- Mốc đầu tiên của mỗi lần mở quà nói `phrases.floorReached(tầng)`.
-- Trang chủ: thêm nút "Đổi mũ" và "Khung cảnh" (chỉ hiện khi đã có món) để bé tự đổi qua lại.
-- Bộ sưu tập: thêm các mục Hình dán vàng, Mũ, Thú cưng, Khung cảnh.
-- Nhiệm vụ ngày vẫn tặng hình dán như cũ.
-
-### 4.3 Nhạc (phụ huynh yêu cầu)
-
-Tổng hợp bằng Web Audio, không cần file:
-- **Nhạc thưởng** mỗi khi có quà: trống dồn → chũm chọe → kèn đồng (sawtooth qua lọc thông thấp) đi lên → hợp âm Đô
-  trưởng ngân dài → tiếng lấp lánh. Khoảng 2,5 giây, phải nghe "bùng nổ".
-- **Nhạc nền khi leo tháp**: vòng lặp vui tai (khoảng 116 BPM, hợp âm C–Am–F–G, giai điệu ngũ cung), âm lượng nhỏ;
-  **hạ nhỏ khi cú đang đọc** (gọi trong `Voice.say`), tắt khi rời màn tháp, tạm dừng khi mở quà;
-  nút 🎵 trên thanh trên cùng để tắt/bật (lưu trong localStorage). Cần thêm emoji 🎵 vào `UI_EMOJI` rồi chạy `node tools/build.js`.
-- Lễ hội tầng 50 có đoạn nhạc nhảy riêng.
+Còn lại cho phần này:
+- `img/1f3b5.svg` (🎵) là hình vẽ tay tạm vì máy làm việc không tải được Twemoji. Trên Mac: xóa file đó rồi chạy
+  `node tools/build.js` để lấy hình Twemoji thật.
+- Chưa thử trên tivi thật: kiểm tra độ mượt của sàn disco, mưa sao, pháo hoa và âm lượng nhạc nền; giảm nếu giật.
+- Không thêm câu nói mới nên không cần tạo lại giọng đọc.
 
 ### 4.4 Máy chủ tự chạy khi bật Mac (phụ huynh đã đồng ý)
 

@@ -7,8 +7,8 @@
   const { pick, shuffle } = C.util;
   const app = document.getElementById('app');
 
-  const FLOORS = 10;
-  const MILESTONES = [5, 10];
+  const FLOORS = 100;
+  const SEGMENT = 10;           // mỗi 10 tầng là một mốc an toàn có quà
   const HEARTS = 3;
   const DAILY_GOAL = 15;        // số câu đúng ngay mỗi ngày để xong nhiệm vụ
   const COOLDOWN_MS = 3000;     // khóa đáp án sau mỗi lần sai
@@ -21,6 +21,7 @@
 
   const LOCAL_KEY = 'be-hoc-vui:profiles';
   const LAST_KEY = 'be-hoc-vui:last';
+  const MUSIC_KEY = 'be-hoc-vui:music';
   // Bản cài trên tivi chạy từ file:// nên cần địa chỉ máy chủ (tools/package_tv.js ghi vào); bản web dùng chính máy chủ đang mở.
   const API = (window.BHV_SERVER || '') + 'api/profiles';
 
@@ -45,6 +46,14 @@
     p.streak = p.streak || { last: null, count: 0 };
     p.mission = p.mission || { date: null };
     p.plays = p.plays || 0;
+    p.climbs = p.climbs || {};     // tiến độ từng tháp: { floor, hearts, owl, swap }
+    p.hats = p.hats || [];
+    p.hat = p.hat || null;
+    p.pets = p.pets || [];
+    p.pet = p.pet || null;
+    p.themes = p.themes || [];
+    p.theme = p.theme || null;
+    p.golden = p.golden || [];
     return p;
   }
 
@@ -182,6 +191,8 @@
 
   /* ================= Âm thanh ================= */
 
+  const mf = m => 440 * Math.pow(2, (m - 69) / 12);   // số nốt MIDI → tần số
+
   // Mỗi lần đổi màn hình hay câu hỏi, epoch tăng lên và các chuỗi async cũ tự dừng.
   let epoch = 0;
   function newEpoch() {
@@ -198,6 +209,7 @@
     say(text) {
       this.stop();
       showBubble(text);
+      Music.duck(true);
       return new Promise(resolve => {
         let done = false;
         let fellBack = false;
@@ -206,6 +218,7 @@
           done = true;
           clearTimeout(timer);
           if (this.finish === end) this.finish = null;
+          Music.duck(false);
           resolve();
         };
         const fallback = () => {
@@ -261,7 +274,7 @@
       if (!this.ctx && AC) this.ctx = new AC();
       if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     },
-    tone(freq, start, dur, type, vol, slideTo) {
+    tone(freq, start, dur, type, vol, slideTo, dest) {
       const c = this.ctx;
       if (!c) return;
       const t = c.currentTime + start;
@@ -274,9 +287,102 @@
       g.gain.exponentialRampToValueAtTime(vol || 0.15, t + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       o.connect(g);
-      g.connect(c.destination);
+      g.connect(dest || c.destination);
       o.start(t);
       o.stop(t + dur + 0.05);
+    },
+    // Một tiếng ồn ngắn qua bộ lọc: trống, chũm chọe, tiếng xì.
+    noiseHit(start, dur, freq, ftype, vol, dest) {
+      const c = this.ctx;
+      if (!c) return;
+      if (!this.white) {
+        const len = c.sampleRate * 2;
+        this.white = c.createBuffer(1, len, c.sampleRate);
+        const d = this.white.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      }
+      const t = c.currentTime + start;
+      const src = c.createBufferSource();
+      const f = c.createBiquadFilter();
+      const g = c.createGain();
+      src.buffer = this.white;
+      f.type = ftype;
+      f.frequency.value = freq;
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(f);
+      f.connect(g);
+      g.connect(dest || c.destination);
+      src.start(t, Math.random() * 0.5);
+      src.stop(t + dur + 0.05);
+    },
+    // Kèn đồng: hai sóng răng cưa lệch nhau qua lọc thông thấp mở dần.
+    brass(midi, start, dur, vol) {
+      const c = this.ctx;
+      if (!c) return;
+      const t = c.currentTime + start;
+      const f = c.createBiquadFilter();
+      const g = c.createGain();
+      f.type = 'lowpass';
+      f.Q.value = 2;
+      f.frequency.setValueAtTime(500, t);
+      f.frequency.exponentialRampToValueAtTime(3200, t + 0.08);
+      f.frequency.exponentialRampToValueAtTime(1300, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.04);
+      g.gain.setValueAtTime(vol, t + dur * 0.7);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      [-7, 7].forEach(det => {
+        const o = c.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = mf(midi);
+        o.detune.value = det;
+        o.connect(f);
+        o.start(t);
+        o.stop(t + dur + 0.05);
+      });
+      f.connect(g);
+      g.connect(c.destination);
+    },
+    // Nhạc thưởng (~2,5 giây): trống dồn, chũm chọe, kèn đồng đi lên, hợp âm Đô trưởng ngân dài, lấp lánh.
+    fanfare() {
+      if (!this.ctx) return;
+      for (let i = 0; i < 16; i++) {
+        const t = 0.75 * (1 - Math.pow(1 - i / 16, 1.5));
+        this.noiseHit(t, 0.07, 1900, 'bandpass', 0.1 + i * 0.012);
+        if (i % 4 === 0) this.tone(110, t, 0.12, 'triangle', 0.15, 70);
+      }
+      this.tone(80, 0.76, 0.4, 'sine', 0.5, 40);
+      this.noiseHit(0.78, 1.5, 6500, 'highpass', 0.25);
+      [67, 72, 76, 79].forEach((m, i) => this.brass(m, 0.8 + i * 0.14, 0.2, 0.09));
+      [60, 64, 67, 72, 76].forEach(m => this.brass(m, 1.38, 1.15, 0.055));
+      this.tone(mf(36), 1.38, 1.1, 'triangle', 0.25);
+      this.noiseHit(1.38, 1.2, 7000, 'highpass', 0.15);
+      for (let i = 0; i < 12; i++) this.tone(mf(84 + [0, 4, 7, 12][i % 4]), 1.55 + i * 0.075, 0.25, 'sine', 0.05);
+    },
+    // Nhạc nhảy cho lễ hội tầng 50 (128 BPM): trống, vỗ tay, bass nảy, hợp âm và giai điệu.
+    dance(sec) {
+      if (!this.ctx) return;
+      const e = 60 / 128 / 2;
+      const roots = [36, 33, 41, 43];
+      const chords = [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]];
+      const lead = [72, 76, 79, 81, 79, 76, 74, 76];
+      for (let i = 0, t = 0; t < sec; i++, t += e) {
+        const bar = Math.floor(i / 8) % 4;
+        if (i % 2 === 0) this.tone(150, t, 0.2, 'sine', 0.45, 42);
+        else this.noiseHit(t, 0.05, 8000, 'highpass', 0.07);
+        if (i % 4 === 2) this.noiseHit(t, 0.14, 1500, 'bandpass', 0.2);
+        this.tone(mf(roots[bar] + (i % 2 ? 12 : 0)), t, e * 0.9, 'triangle', 0.16);
+        if (i % 4 === 1) chords[bar].forEach(m => this.tone(mf(m + 12), t, e * 1.2, 'square', 0.018));
+        if (i % 2 === 0) this.tone(mf(lead[(i / 2) % 8] + (bar === 3 ? 2 : 0)), t, e * 1.6, 'triangle', 0.06);
+      }
+    },
+    // Tiếng tên lửa phóng: tiếng xì mạnh dần rồi bay xa.
+    whoosh() {
+      const c = this.ctx;
+      if (!c) return;
+      this.noiseHit(0, 2.2, 900, 'lowpass', 0.35);
+      this.tone(120, 0, 2, 'sawtooth', 0.05, 900);
     },
     correct(power) {
       [523, 659, 784, 1047].forEach((f, i) => this.tone(f, i * 0.08, 0.28, 'triangle', 0.18));
@@ -319,6 +425,85 @@
     chest() { [784, 988, 1175, 1568, 1976].forEach((f, i) => this.tone(f, i * 0.07, 0.3, 'sine', 0.12)); },
   };
 
+  // Nhạc nền khi leo tháp: vòng lặp 116 BPM, hợp âm C–Am–F–G, giai điệu ngũ cung, âm lượng nhỏ.
+  const Music = {
+    on: readLocal(MUSIC_KEY, true) !== false,
+    bus: null,
+    playing: false,
+    paused: false,
+    ducked: false,
+    timer: null,
+    next: 0,
+    step: 0,
+    CHORDS: [[48, 52, 55], [45, 48, 52], [41, 45, 48], [43, 47, 50]],
+    MELODY: [
+      [76, 0, 79, 76, 72, 0, 74, 76], [81, 0, 79, 76, 79, 0, 76, 74], [72, 74, 76, 0, 81, 79, 76, 0], [74, 0, 79, 0, 74, 76, 79, 0],
+      [79, 0, 81, 79, 76, 0, 72, 74], [76, 0, 72, 69, 72, 0, 74, 76], [77, 0, 76, 74, 72, 0, 69, 72], [74, 76, 79, 81, 79, 0, 0, 0],
+    ],
+
+    start() {
+      if (!this.on || this.playing || !Sfx.ctx) return;
+      const c = Sfx.ctx;
+      if (!this.bus) {
+        this.bus = c.createGain();
+        this.bus.gain.value = 0;
+        this.bus.connect(c.destination);
+      }
+      this.playing = true;
+      this.paused = false;
+      this.step = 0;
+      this.next = c.currentTime + 0.15;
+      this.timer = setInterval(() => this.schedule(), 100);
+      this.fade();
+    },
+    stop() {
+      clearInterval(this.timer);
+      this.timer = null;
+      this.playing = false;
+      this.paused = false;
+      this.fade();
+    },
+    pause() { this.paused = true; this.fade(); },
+    resume() { this.paused = false; this.fade(); },
+    // Hạ nhỏ khi cú đang đọc.
+    duck(on) { this.ducked = on; this.fade(); },
+    toggle() {
+      this.on = !this.on;
+      writeLocal(MUSIC_KEY, this.on);
+      if (this.on) this.start();
+      else this.stop();
+    },
+    fade() {
+      if (!this.bus) return;
+      const c = Sfx.ctx;
+      const v = !this.playing || this.paused ? 0 : this.ducked ? 0.3 : 1;
+      this.bus.gain.cancelScheduledValues(c.currentTime);
+      this.bus.gain.setTargetAtTime(v, c.currentTime, 0.12);
+    },
+    schedule() {
+      const c = Sfx.ctx;
+      const e = 60 / 116 / 2;   // một móc đơn
+      while (this.next < c.currentTime + 0.35) {
+        if (!this.paused) this.play(this.step, this.next - c.currentTime);
+        this.next += e;
+        this.step = (this.step + 1) % 64;
+      }
+    },
+    play(s, t) {
+      const bus = this.bus;
+      const e = 60 / 116 / 2;
+      const beat = s % 8;
+      const chord = this.CHORDS[Math.floor(s / 8) % 4];
+      if (beat === 0 || beat === 4) Sfx.tone(mf(chord[0] - 12), t, e * 1.8, 'triangle', 0.09, null, bus);
+      if (beat === 6) Sfx.tone(mf(chord[2] - 12), t, e * 0.9, 'triangle', 0.07, null, bus);
+      if (beat === 2 || beat === 6) chord.forEach(m => Sfx.tone(mf(m + 12), t, e * 0.8, 'triangle', 0.018, null, bus));
+      if (beat % 2 === 1) Sfx.noiseHit(t, 0.03, 9000, 'highpass', 0.025, bus);
+      if (beat === 0) Sfx.tone(120, t, 0.12, 'sine', 0.12, 50, bus);
+      const m = this.MELODY[Math.floor(s / 8)][beat];
+      if (m) Sfx.tone(mf(m), t, e * 1.5, 'sine', 0.045, null, bus);
+    },
+  };
+
   /* ================= Tiện ích giao diện ================= */
 
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -328,6 +513,19 @@
   const emo = (ch, cls) => `<img class="emo ${cls || ''}" src="img/${C.emojiFile(ch)}.svg" alt="${ch}" draggable="false">`;
   const title = cls => `<h1 class="title ${cls || ''}">${['Bé', 'Học', 'Vui'].map((w, i) => `<span style="--i:${i}">${w}</span>`).join(' ')}</h1>`;
   const corner = () => '<div class="corner"><div class="owl-slot"></div><div class="bubble"></div></div>';
+  const themeById = id => C.themes.find(t => t.id === id);
+
+  // Bạn thú của bé, đội mũ đang chọn; withPet thì có thú cưng đi cạnh. Cỡ theo font-size của chỗ đặt.
+  function avatarHtml(p, withPet) {
+    return `<span class="ava">${emo(p.avatar)}${p.hat ? emo(p.hat, 'ava-hat') : ''}${withPet && p.pet ? emo(p.pet, 'ava-pet') : ''}</span>`;
+  }
+
+  // Khung cảnh (nền trời) của bé đang chơi; không có hồ sơ thì về bầu trời mặc định.
+  function applyTheme() {
+    const t = profile && profile.theme;
+    if (t) document.body.setAttribute('data-theme', t);
+    else document.body.removeAttribute('data-theme');
+  }
 
   function mountOwl() {
     const slot = $('.owl-slot');
@@ -356,6 +554,7 @@
   // Hiện màn hình mới; trả về epoch của màn hình đó.
   function screen(name, html) {
     const ep = newEpoch();
+    Music.stop();
     app.className = 'screen-' + name;
     app.innerHTML = html;
     mountOwl();
@@ -584,13 +783,15 @@
 
   function showProfiles(greet) {
     const list = Store.list();
+    profile = null;
+    applyTheme();
     if (!list.length) return showNewProfile(true);
     screen('profiles', `
       <h2 class="screen-title">Ai đang chơi?</h2>
       <div class="profile-list">
         ${list.map((p, i) => `
           <button class="profile-card nav" data-id="${esc(p.id)}" style="--i:${i}">
-            <span class="avatar">${emo(p.avatar)}</span>
+            <span class="avatar">${avatarHtml(p, true)}</span>
             <span class="pname">${esc(p.name || 'Bé')}</span>
             <span class="pmeta">${emo('⭐', 'tiny')}${p.stars} ${emo('🔥', 'tiny')}${streakOf(p)}</span>
           </button>`).join('')}
@@ -642,18 +843,27 @@
   function selectProfile(p) {
     profile = p;
     writeLocal(LAST_KEY, p.id);
+    applyTheme();
     showHome(true);
   }
 
   /* ================= Trang chủ của bé ================= */
 
-  async function showHome(greet) {
+  const climbOf = (p, id) => p.climbs[id] || { floor: 0, hearts: HEARTS, owl: 1, swap: 1 };
+  // Món tiếp theo trong danh sách [không có, ...món đã có] để bé bấm đổi vòng tròn.
+  const cycle = (list, cur) => {
+    const opts = [null].concat(list);
+    return opts[(opts.indexOf(cur) + 1) % opts.length];
+  };
+
+  async function showHome(greet, focusSel) {
     const p = profile;
     const n = todayCount(p);
     const streak = streakOf(p);
+    const theme = themeById(p.theme);
     const ep = screen('home', `
       <header class="home-top">
-        <button class="who nav" id="switch">${emo(p.avatar)}<span>${esc(p.name || 'Bé')}</span></button>
+        <button class="who nav" id="switch">${avatarHtml(p, true)}<span>${esc(p.name || 'Bé')}</span></button>
         <div class="chips">
           <span class="chip">${emo('⭐')}<b>${p.stars}</b></span>
           <span class="chip">${emo('🔥')}<b>${streak}</b> ngày</span>
@@ -666,18 +876,23 @@
       </section>
       <div class="towers">
         ${C.subjects.map((s, i) => {
-          const best = (p.towers[s.id] || {}).best || 0;
+          const floor = climbOf(p, s.id).floor;
+          const wins = (p.towers[s.id] || {}).wins || 0;
           return `
           <button class="tower-card nav" data-id="${s.id}" data-say="${esc(s.name)}" style="--c:${s.color};--i:${i}">
             ${emo(s.icon, 'tower-icon')}
             <span class="tower-name">${esc(s.name)}</span>
-            <span class="segs">${Array.from({ length: FLOORS }, (_, f) => `<i class="${f < best ? 'on' : ''}"></i>`).join('')}</span>
-            <span class="tower-best">${best >= FLOORS ? emo('👑', 'tiny') + ' Đã lên đỉnh' : 'Cao nhất: tầng ' + best}</span>
+            <span class="segs">${Array.from({ length: FLOORS / SEGMENT }, (_, k) =>
+              `<i style="--p:${Math.max(0, Math.min(1, (floor - k * SEGMENT) / SEGMENT))}"></i>`).join('')}</span>
+            <span class="tower-best">${wins ? emo('👑', 'tiny') : ''}Đang ở tầng <b>${floor}</b>/${FLOORS}</span>
           </button>`;
         }).join('')}
       </div>
       <footer class="home-foot">
-        <button class="pill nav" id="album">${emo('📒', 'tiny')} Bộ sưu tập ${p.stickers.length}/${C.stickers.length}</button>
+        <button class="pill nav" id="album">${emo('📒', 'tiny')} Bộ sưu tập ${collectionCount(p)}</button>
+        ${p.hats.length ? `<button class="pill nav" id="hat">${emo(p.hat || p.hats[0], 'tiny')} Đổi mũ</button>` : ''}
+        ${p.pets.length ? `<button class="pill nav" id="pet">${emo(p.pet || p.pets[0], 'tiny')} Thú cưng</button>` : ''}
+        ${p.themes.length ? `<button class="pill nav" id="theme">${emo(theme ? theme.icon : '🎨', 'tiny')} Khung cảnh</button>` : ''}
         <button class="pill nav" id="parents">Bố mẹ xem</button>
       </footer>
       ${corner()}`);
@@ -685,23 +900,57 @@
     $('#switch').onclick = () => showProfiles(true);
     $('#album').onclick = showAlbum;
     $('#parents').onclick = showParents;
-    focusFirst('.tower-card');
+    const change = (id, key, list) => {
+      const b = $('#' + id);
+      if (!b) return;
+      b.onclick = () => {
+        p[key] = cycle(list, p[key]);
+        Store.save(p);
+        applyTheme();
+        Sfx.pop();
+        showHome(false, '#' + id);
+      };
+    };
+    change('hat', 'hat', p.hats);
+    change('pet', 'pet', p.pets);
+    change('theme', 'theme', p.themes);
+    focusFirst(focusSel || '.tower-card');
     if (!greet) return;
     await Voice.say(p.plays ? C.phrases.welcomeBack : C.phrases.welcomeNew);
     if (ep === epoch && streak >= 2) Voice.say(C.phrases.streak(Math.min(streak, 20)));
   }
 
+  // Các ngăn trong bộ sưu tập: [tiêu đề, mọi món, món bé đã có].
+  function collection(p) {
+    return [
+      ['Hình dán', C.stickers, p.stickers],
+      ['Hình dán vàng', C.golden, p.golden],
+      ['Mũ', C.hats.concat('👑'), p.hats],
+      ['Thú cưng', C.pets.common.concat(C.pets.rare), p.pets],
+      ['Khung cảnh', C.themes.map(t => t.icon), p.themes.map(id => themeById(id).icon)],
+    ];
+  }
+  function collectionCount(p) {
+    const parts = collection(p);
+    return sum(parts.map(c => c[2].length)) + '/' + sum(parts.map(c => c[1].length));
+  }
+
   function showAlbum() {
     const p = profile;
+    let k = 0;
     screen('album', `
       <div class="panel album">
-        <h2 class="screen-title">${emo('📒', 'tiny')} Bộ sưu tập hình dán <small>${p.stickers.length}/${C.stickers.length}</small></h2>
-        <div class="sticker-grid">
-          ${C.stickers.map((s, i) => (p.stickers.includes(s)
-            ? `<span class="slot on" style="--i:${i}">${emo(s)}</span>`
-            : '<span class="slot">?</span>')).join('')}
-        </div>
-        <p class="hint">Leo tới tầng 5, tầng 10 hoặc làm xong nhiệm vụ hôm nay để nhận hình dán mới.</p>
+        <h2 class="screen-title">${emo('📒', 'tiny')} Bộ sưu tập <small>${collectionCount(p)}</small></h2>
+        ${collection(p).map(([name, all, have]) => `
+          <section class="shelf${name === 'Hình dán vàng' ? ' gold' : ''}">
+            <h3>${esc(name)} <small>${have.length}/${all.length}</small></h3>
+            <div class="sticker-grid">
+              ${all.map(s => (have.includes(s)
+                ? `<span class="slot on" style="--i:${k++}">${emo(s)}</span>`
+                : '<span class="slot">?</span>')).join('')}
+            </div>
+          </section>`).join('')}
+        <p class="hint">Cứ leo được 10 tầng là tới một mốc có quà bí mật. Làm xong nhiệm vụ hôm nay cũng được hình dán mới.</p>
         <button class="btn-big nav" id="back">← Về nhà</button>
       </div>`);
     $('#back').onclick = () => showHome(false);
@@ -715,7 +964,7 @@
       <div class="panel parents">
         <h2 class="screen-title">Bố mẹ xem: ${esc(p.name || 'Bé')} ${emo(p.avatar, 'tiny')}</h2>
         <p class="meta">
-          ⭐ ${p.stars} sao · 🔥 ${streakOf(p)} ngày liên tiếp · ${p.plays} lượt leo tháp · ${p.stickers.length} hình dán<br>
+          ⭐ ${p.stars} sao · 🔥 ${streakOf(p)} ngày liên tiếp · ${p.plays} lượt leo tháp · bộ sưu tập ${collectionCount(p)}<br>
           Lưu tiến độ: ${Store.server ? 'máy chủ trong nhà (serve.py) và trình duyệt này' : 'chỉ trong trình duyệt này'}
         </p>
         <div class="row">
@@ -725,9 +974,12 @@
         <table>
           <thead><tr><th>Kỹ năng</th><th>Cấp</th><th>Đúng ngay (tổng)</th><th>10 câu gần nhất</th></tr></thead>
           <tbody>
-            ${C.subjects.filter(s => s.id !== 'mix').map(s => `
-              <tr class="group-row"><th colspan="4">${emo(s.icon, 'tiny')} ${esc(s.name)} · tầng cao nhất ${(p.towers[s.id] || {}).best || 0}/${FLOORS}</th></tr>
-              ${s.skills.map(id => {
+            ${C.subjects.map(s => {
+              const t = p.towers[s.id] || {};
+              const head = `<tr class="group-row"><th colspan="4">${emo(s.icon, 'tiny')} ${esc(s.name)} · đang ở tầng ${climbOf(p, s.id).floor}/${FLOORS}` +
+                ` · cao nhất ${t.best || 0}/${FLOORS}${t.wins ? ` · về đích ${t.wins} lần` : ''}</th></tr>`;
+              if (s.id === 'mix') return head;
+              return head + s.skills.map(id => {
                 const st = p.skills[id] || { level: 1, recent: [], total: 0, firstTry: 0 };
                 const pct = st.total ? Math.round((st.firstTry / st.total) * 100) : 0;
                 return `<tr>
@@ -736,7 +988,8 @@
                   <td>${st.total ? `<span class="bar"><i style="width:${pct}%"></i></span> ${pct}% (${st.firstTry}/${st.total})` : '<span class="muted">chưa học</span>'}</td>
                   <td class="recent">${st.recent.slice(-10).map(r => `<i class="${r ? 'ok' : 'no'}"></i>`).join('')}</td>
                 </tr>`;
-              }).join('')}`).join('')}
+              }).join('');
+            }).join('')}
           </tbody>
         </table>
         <p class="meta">Câu đúng ngay theo ngày: ${days.length ? days.map(d => `${d.slice(8)}/${d.slice(5, 7)}: <b>${p.days[d]}</b>`).join(' · ') : 'chưa có'}</p>
@@ -756,23 +1009,39 @@
 
   let game = null;
 
+  const segOf = f => Math.floor(f / SEGMENT) * SEGMENT;
+
+  // Vào tháp: leo tiếp đúng tầng, số tim và quyền trợ giúp đã lưu (thoát giữa chừng không được nạp lại tim).
   function startTower(subjectId) {
     const subject = C.subjects.find(s => s.id === subjectId);
+    const c = climbOf(profile, subjectId);
+    const resumed = c.floor > 0 || c.hearts < HEARTS;
     game = {
-      subject, floor: 0, hearts: HEARTS, stars: 0, owl: 1, swap: 1, combo: 0,
-      asked: 0, confirmSaid: 0, retry: [], recent: [], seen: new Set(), stickers: [],
+      subject, floor: c.floor, seg: segOf(c.floor), hearts: Math.max(1, Math.min(HEARTS, c.hearts)), owl: c.owl, swap: c.swap,
+      stars: 0, combo: 0, asked: 0, confirmSaid: 0, retry: [], recent: [], seen: new Set(), gifts: [],
       q: null, tries: 0, taught: false, helped: false, selected: null, locked: true, teaching: false,
     };
+    towerState(subjectId).plays++;
+    profile.plays++;
+    Store.save(profile);
     showTower();
-    nextQuestion();
+    nextQuestion(resumed ? C.phrases.resume : null);
   }
 
-  // Tầng thấp dễ hơn, tầng cao khó hơn cấp hiện tại của bé một chút.
-  function levelFor(skill, step) {
+  function saveClimb() {
+    const g = game;
+    profile.climbs[g.subject.id] = { floor: g.floor, hearts: g.hearts, owl: g.owl, swap: g.swap };
+    const t = towerState(g.subject.id);
+    t.best = Math.max(t.best, g.floor);
+    Store.save(profile);
+  }
+
+  // Tầng 1–20 dễ hơn cấp của bé một bậc, 21–60 đúng cấp, 61–100 khó hơn một bậc.
+  function levelFor(skill, floor) {
     const base = skillState(skill).level;
     const max = C.skills[skill].maxLevel || 1;
-    if (step <= 3) return Math.max(1, base - 1);
-    if (step >= 8) return Math.min(max, base + 1);
+    if (floor <= 20) return Math.max(1, base - 1);
+    if (floor > 60) return Math.min(max, base + 1);
     return base;
   }
 
@@ -811,6 +1080,7 @@
         </div>
         <div class="combo">${emo('🔥')}<b>x0</b></div>
         <div class="score">${emo('⭐')}<b>0</b></div>
+        <button class="icon-btn nav${Music.on ? '' : ' off'}" id="music" aria-label="Nhạc">${emo('🎵')}</button>
       </header>
       <section class="stage">
         <div class="scene"></div>
@@ -823,32 +1093,49 @@
       </section>
       <aside class="ladder" style="--c:${g.subject.color}">
         <div class="ladder-title">${emo(g.subject.icon, 'tiny')} ${esc(g.subject.name)}</div>
-        <div class="floors">
-          ${Array.from({ length: FLOORS }, (_, i) => FLOORS - i).map(f => `
-            <div class="floor${MILESTONES.includes(f) ? ' milestone' : ''}" data-f="${f}">
-              <span class="fnum">${f}</span>${emo(f === FLOORS ? '👑' : MILESTONES.includes(f) ? '🎁' : '⭐', 'prize')}
-            </div>`).join('')}
-          <div class="ground"></div>
-          <div class="climber">${emo(profile.avatar)}</div>
-        </div>
+        <div class="progress"><div class="progress-bar"><i></i></div><b class="progress-num"></b></div>
+        <div class="floors"></div>
       </aside>
       ${corner()}
       <div class="overlay"></div>`);
+    renderLadder();
     $('#home').onclick = askQuit;
     $('#replay').onclick = () => { if (game && game.q && !game.teaching) Voice.say(game.q.say); };
     $('#lock').onclick = confirmAnswer;
     $('#h-owl').onclick = useOwl;
     $('#h-swap').onclick = useSwap;
+    $('#music').onclick = () => {
+      Music.toggle();
+      $('#music').classList.toggle('off', !Music.on);
+    };
+    Music.start();
+  }
+
+  // Thang bên phải chỉ hiện đoạn 10 tầng đang leo: trên cùng là mốc 🎁 bí ẩn (tầng 100 là 🏆), dưới cùng là mốc đã qua.
+  function renderLadder() {
+    const g = game;
+    const top = g.seg + SEGMENT;
+    let html = '';
+    for (let f = top; f > g.seg; f--) {
+      const goal = f === top;
+      html += `<div class="floor${goal ? ' milestone' : ''}" data-f="${f}"><span class="fnum">${f}</span>` +
+        `${emo(goal ? (f === FLOORS ? '🏆' : '🎁') : '⭐', 'prize')}</div>`;
+    }
+    html += g.seg ? `<div class="floor base"><span class="fnum">${g.seg}</span>${emo('⛳', 'prize')}</div>` : '<div class="ground"></div>';
+    html += `<div class="climber">${avatarHtml(profile, true)}</div>`;
+    $('.floors').innerHTML = html;
   }
 
   function renderStatus() {
     const g = game;
-    app.querySelectorAll('.floor').forEach(el => {
+    app.querySelectorAll('.floor[data-f]').forEach(el => {
       const f = +el.dataset.f;
       el.classList.toggle('done', f <= g.floor);
       el.classList.toggle('next', f === g.floor + 1);
     });
-    $('.floors').style.setProperty('--f', g.floor);
+    $('.floors').style.setProperty('--f', g.floor - g.seg);
+    $('.progress-num').textContent = g.floor + '/' + FLOORS;
+    $('.progress-bar i').style.width = (g.floor / FLOORS) * 100 + '%';
     app.querySelectorAll('.heart').forEach((h, i) => h.classList.toggle('lost', i >= g.hearts));
     $('#h-owl').classList.toggle('used', g.owl <= 0);
     $('#h-swap').classList.toggle('used', g.swap <= 0);
@@ -863,10 +1150,9 @@
     combo.classList.toggle('on', g.combo >= 2);
   }
 
-  function nextQuestion() {
-    if (game.floor >= FLOORS) return endTower(true);
+  function nextQuestion(intro) {
     game.asked++;
-    showQuestion(makeQuestion());
+    showQuestion(makeQuestion(), intro);
   }
 
   async function showQuestion(q, intro) {
@@ -1060,20 +1346,32 @@
       renderStatus();
       await wait(800);
       if (ep !== epoch) return;
-      if (MILESTONES.includes(g.floor)) {
-        await reward(g.floor === FLOORS ? 'top' : 'milestone');
+      if (g.floor % SEGMENT === 0) {
+        // Giữ đoạn thang cũ (bé đứng trên đỉnh) tới khi mở quà xong.
+        await milestone(g.floor);
         if (ep !== epoch) return;
+        if (g.floor >= FLOORS) {
+          crownTower();
+        } else {
+          // Mốc an toàn: tim đầy, trợ giúp mới cho đoạn 10 tầng tiếp theo.
+          Object.assign(g, { seg: g.floor, hearts: HEARTS, owl: 1, swap: 1 });
+          g.seen.clear();
+          renderLadder();
+          renderStatus();
+        }
       }
     } else if (!q.isRetry) {
       g.retry.push({ q, due: g.asked + RETRY_AFTER });
       await Voice.say(C.phrases.later);
       if (ep !== epoch) return;
     }
+    if (g.floor < FLOORS) saveClimb();
     if (res.missionDone) {
       await reward('mission');
       if (ep !== epoch) return;
     }
-    nextQuestion();
+    if (g.floor >= FLOORS) endTower();
+    else nextQuestion();
   }
 
   async function onWrong(btn, ep) {
@@ -1092,10 +1390,10 @@
       renderStatus();
     }
     if (g.hearts <= 0) {
-      await Voice.say(C.phrases.gameOver);
-      if (ep === epoch) endTower(false);
+      outOfHearts();
       return;
     }
+    saveClimb();
     if (g.tries === 1) {
       if (q.countAlong) hintPulse();
       const hint = g.hearts === 1 ? C.phrases.lastHeart : q.countAlong ? C.phrases.countHint : pick(C.phrases.wrong);
@@ -1193,6 +1491,7 @@
     g.owl--;
     g.helped = true;
     g.locked = true;
+    saveClimb();
     renderStatus();
     await teach(g.q, C.phrases.owlHelp);
     if (ep !== epoch) return;
@@ -1206,6 +1505,7 @@
       return;
     }
     g.swap--;
+    saveClimb();
     showQuestion(makeQuestion(g.q.skill), C.phrases.swap);
   }
 
@@ -1234,6 +1534,34 @@
     }, 850);
   }
 
+  /* ---------- Quà ---------- */
+
+  // Tặng một món; đã có hết thì đổi sang hình dán vàng, hết nữa thì +3 sao. Mũ, thú cưng, khung cảnh mới được dùng luôn.
+  function grant(kind, rare) {
+    const p = profile;
+    const pools = {
+      sticker: [C.stickers, p.stickers], golden: [C.golden, p.golden], hat: [C.hats, p.hats],
+      pet: [rare ? C.pets.rare : C.pets.common, p.pets], theme: [C.themes.map(t => t.id), p.themes],
+    };
+    const [pool, have] = pools[kind] || [[], []];
+    const left = pool.filter(x => !have.includes(x));
+    if (!left.length) {
+      if (kind !== 'golden') return grant('golden');
+      p.stars += 3;
+      Store.save(p);
+      return { kind: 'stars' };
+    }
+    const item = kind === 'theme' ? left[0] : pick(left);
+    have.push(item);
+    if (kind === 'hat') p.hat = item;
+    if (kind === 'pet') p.pet = item;
+    if (kind === 'theme') p.theme = item;
+    Store.save(p);
+    if (game) game.gifts.push(kind === 'theme' ? themeById(item).icon : item);
+    return { kind, item };
+  }
+
+  // Phần thưởng nhiệm vụ ngày vẫn là hình dán thường như trước.
   function grantSticker() {
     const left = C.stickers.filter(s => !profile.stickers.includes(s));
     if (!left.length) {
@@ -1243,54 +1571,387 @@
     }
     const s = pick(left);
     profile.stickers.push(s);
-    game.stickers.push(s);
+    game.gifts.push(s);
     Store.save(profile);
     return s;
   }
 
-  // Hộp quà ở mốc an toàn, đỉnh tháp và khi xong nhiệm vụ; chờ bé bấm "Tiếp tục".
+  const overlay = () => $('.overlay');
+  const GRANT_INFO = {
+    sticker: ['Hình dán mới!', 'sticker'], golden: ['Hình dán vàng siêu hiếm!', 'golden'], hat: ['Mũ mới!', 'hat'],
+    pet: ['Thú cưng mới!', 'pet'], theme: ['Khung cảnh mới!', 'theme'], stars: ['+3 sao', 'bonus'],
+  };
+
+  // Mở hộp quà và khoe món vừa nhận. Trả về false nếu bé đã rời màn hình.
+  async function reveal(gr, heading) {
+    const ep = epoch;
+    const ov = overlay();
+    const theme = gr.kind === 'theme' && themeById(gr.item);
+    const shown = gr.kind === 'hat' ? avatarHtml(profile) : emo(gr.kind === 'stars' ? '⭐' : theme ? theme.icon : gr.item);
+    ov.innerHTML = `
+      <div class="reward-card gift-${gr.kind}">
+        <h2>${esc(heading)}</h2>
+        <div class="prize-box">
+          <div class="gift">${emo('🎁')}</div>
+          <div class="sticker">${shown}</div>
+        </div>
+        <p class="reward-note">${esc(theme ? theme.name : GRANT_INFO[gr.kind][0])}</p>
+      </div>`;
+    await wait(900);
+    if (ep !== epoch) return false;
+    ov.querySelector('.reward-card').classList.add('open');
+    if (theme) applyTheme();
+    Sfx.fanfare();
+    celebrate(ov.querySelector('.prize-box'), 3);
+    await Voice.say(C.phrases[GRANT_INFO[gr.kind][1]]);
+    return ep === epoch;
+  }
+
+  // Thêm nút "Tiếp tục" vào thẻ đang hiện và chờ bé bấm.
+  function tapToContinue() {
+    const card = overlay().querySelector('.reward-card');
+    card.insertAdjacentHTML('beforeend', '<button class="btn-big nav" id="reward-ok">Tiếp tục ▶</button>');
+    const ok = card.querySelector('#reward-ok');
+    ok.focus();
+    return new Promise(resolve => { ok.onclick = resolve; });
+  }
+
+  // Quà ở mỗi mốc: càng lên cao càng bất ngờ.
+  const GIFT_PLAN = {
+    10: [() => reveal(grant('sticker'), 'Quà tầng 10')],
+    20: [() => reveal(grant('hat'), 'Quà tầng 20')],
+    30: [() => eggGame(false)],
+    40: [() => reveal(grant('theme'), 'Quà tầng 40')],
+    50: [partyGift],
+    60: [() => eggGame(true)],
+    70: [() => reveal(grant('theme'), 'Quà tầng 70'), () => reveal(grant('hat'), 'Quà tầng 70')],
+    80: [starRain],
+    90: [rocketGift],
+    100: [championGift],
+  };
+
+  async function milestone(floor) {
+    const ep = epoch;
+    const ov = overlay();
+    Music.pause();
+    mood('happy');
+    ov.innerHTML = `
+      <div class="reward-card">
+        <h2>Tầng ${floor}!</h2>
+        <div class="prize-box"><div class="gift">${emo(floor === FLOORS ? '🏆' : '🎁')}</div></div>
+      </div>`;
+    ov.classList.add('show');
+    celebrate(ov.querySelector('.prize-box'), 2);
+    await Voice.say(C.phrases.floorReached(floor));
+    if (ep !== epoch) return;
+    for (const step of GIFT_PLAN[floor]) {
+      const ok = await step();
+      if (!ok || ep !== epoch) return;
+      await tapToContinue();
+      if (ep !== epoch) return;
+    }
+    ov.classList.remove('show');
+    ov.innerHTML = '';
+    Music.resume();
+  }
+
+  // Trứng thần kỳ: bấm liên tục, trứng lắc và nứt dần rồi nở ra thú cưng.
+  async function eggGame(rare) {
+    const ep = epoch;
+    const ov = overlay();
+    const need = rare ? 16 : 12;
+    ov.innerHTML = `
+      <div class="reward-card egg-card${rare ? ' rare' : ''}">
+        <h2>${rare ? 'Trứng hiếm!' : 'Trứng thần kỳ!'}</h2>
+        <button class="egg nav" id="egg">
+          ${emo('🥚')}
+          <svg class="cracks" viewBox="0 0 100 100"><path pathLength="1" d="M50 22 L43 34 L54 42 L41 53 L57 61 L46 74 M54 42 L67 47 M41 53 L30 50 M57 61 L68 66"/></svg>
+        </button>
+        <div class="egg-meter"><i></i></div>
+        <p class="reward-note">Bấm thật nhanh nào!</p>
+      </div>`;
+    const egg = ov.querySelector('#egg');
+    egg.focus();
+    Voice.say(C.phrases.eggIntro);
+    let taps = 0;
+    await new Promise(resolve => {
+      egg.onclick = () => {
+        if (taps >= need) return;
+        taps++;
+        const k = taps / need;
+        egg.style.setProperty('--p', k);
+        ov.querySelector('.egg-meter i').style.width = k * 100 + '%';
+        egg.classList.remove('knock');
+        egg.getBoundingClientRect();
+        egg.classList.add('knock');
+        Sfx.tone(300 + taps * 45, 0, 0.09, 'triangle', 0.16);
+        if (taps >= need) resolve();
+      };
+    });
+    if (ep !== epoch) return false;
+    egg.classList.add('hatch');
+    egg.querySelector('.emo').src = 'img/' + C.emojiFile('🐣') + '.svg';
+    Sfx.bang();
+    celebrate(egg, 2);
+    await wait(1300);
+    if (ep !== epoch) return false;
+    return reveal(grant('pet', rare), rare ? 'Thú cưng hiếm!' : 'Thú cưng mới!');
+  }
+
+  // Lễ hội nửa đường: sàn nhảy disco vài giây, rồi chọn 1 trong 3 hộp bí mật để nhận hình dán vàng.
+  async function partyGift() {
+    const ep = epoch;
+    const ov = overlay();
+    const p = profile;
+    ov.innerHTML = `
+      <div class="disco">
+        <div class="disco-lights"></div>
+        <div class="disco-ball">${emo('🪩')}</div>
+        <h2 class="disco-title">Lễ hội nửa đường!</h2>
+        <div class="dancers">
+          <span class="dancer">${avatarHtml(p)}</span>
+          <span class="dancer owl-dancer"></span>
+          ${p.pet ? `<span class="dancer">${emo(p.pet)}</span>` : ''}
+        </div>
+      </div>`;
+    ov.querySelector('.owl-dancer').appendChild(document.getElementById('owl-tpl').content.firstElementChild.cloneNode(true));
+    Sfx.dance(5.6);
+    Voice.say(C.phrases.party);
+    for (let i = 0; i < 6; i++) {
+      setTimeout(() => {
+        if (ep !== epoch) return;
+        Fx.firework(innerWidth * (0.1 + Math.random() * 0.8), innerHeight * (0.1 + Math.random() * 0.3), 50);
+      }, 400 + i * 850);
+    }
+    await wait(5800);
+    if (ep !== epoch) return false;
+    ov.innerHTML = `
+      <div class="reward-card pick">
+        <h2>Chọn một hộp!</h2>
+        <div class="boxes">${[0, 1, 2].map(i => `<button class="box nav" style="--i:${i}">${emo('🎁')}</button>`).join('')}</div>
+      </div>`;
+    const boxes = [...ov.querySelectorAll('.box')];
+    boxes[1].focus();
+    Voice.say(C.phrases.pickIntro);
+    const chosen = await new Promise(resolve => boxes.forEach(b => { b.onclick = () => resolve(b); }));
+    if (ep !== epoch) return false;
+    boxes.forEach(b => b.classList.add(b === chosen ? 'chosen' : 'other'));
+    Sfx.pop();
+    await wait(700);
+    if (ep !== epoch) return false;
+    return reveal(grant('golden'), 'Hộp bí mật');
+  }
+
+  // Mưa sao: bấm liên tục trong 8 giây, mỗi lần +1 sao (tối đa 30).
+  async function starRain() {
+    const ep = epoch;
+    const ov = overlay();
+    const MAX = 30;
+    const SECONDS = 8;
+    ov.innerHTML = `
+      <div class="rain"></div>
+      <div class="reward-card rain-card">
+        <h2>Mưa sao!</h2>
+        <button class="catch nav" id="catch">${emo('⭐')}</button>
+        <b class="catch-count">0</b>
+        <div class="rain-meter"><i></i></div>
+      </div>`;
+    const sky = ov.querySelector('.rain');
+    const drops = setInterval(() => {
+      if (ep !== epoch) return clearInterval(drops);
+      const d = document.createElement('div');
+      d.className = 'drop';
+      d.style.cssText = `left:${Math.random() * 100}%;--dur:${1.8 + Math.random() * 1.6}s;--s:${0.6 + Math.random() * 0.9}`;
+      d.innerHTML = emo(Math.random() < 0.85 ? '⭐' : '🌟');
+      sky.appendChild(d);
+      setTimeout(() => d.remove(), 3500);
+    }, 160);
+    const btn = ov.querySelector('#catch');
+    btn.focus();
+    let open = false;
+    let n = 0;
+    btn.onclick = () => {
+      if (!open || n >= MAX) {
+        wiggle(btn);
+        return;
+      }
+      n++;
+      ov.querySelector('.catch-count').textContent = n;
+      btn.classList.remove('bump');
+      btn.getBoundingClientRect();
+      btn.classList.add('bump');
+      Sfx.tone(700 + n * 30, 0, 0.1, 'sine', 0.12);
+      const r = btn.getBoundingClientRect();
+      Fx.confetti(r.left + r.width / 2, r.top + r.height / 2, 6, -160, -20, 6, 14);
+    };
+    await Voice.say(C.phrases.starRainIntro);
+    if (ep !== epoch) return false;
+    open = true;
+    ov.querySelector('.rain-card').classList.add('running');
+    ov.querySelector('.rain-meter').style.setProperty('--ms', SECONDS * 1000 + 'ms');
+    await wait(SECONDS * 1000);
+    if (ep !== epoch) return false;
+    open = false;
+    clearInterval(drops);
+    profile.stars += n;
+    Store.save(profile);
+    if (game) game.gifts.push('⭐');
+    const card = ov.querySelector('.rain-card');
+    card.classList.remove('running');
+    card.insertAdjacentHTML('beforeend', `<p class="reward-note">+${n} sao</p>`);
+    Sfx.fanfare();
+    celebrate(btn, 3);
+    await Voice.say(C.phrases.starRainDone);
+    return ep === epoch;
+  }
+
+  // Tên lửa: đếm ngược, bạn thú cưỡi tên lửa bay chéo màn hình, rồi mở khung cảnh tiếp theo.
+  async function rocketGift() {
+    const ep = epoch;
+    const ov = overlay();
+    ov.innerHTML = `
+      <div class="launch">
+        <div class="countdown"></div>
+        <div class="rocket-ride">${emo('🚀', 'rocket')}<span class="rider">${avatarHtml(profile)}</span></div>
+      </div>`;
+    const cd = ov.querySelector('.countdown');
+    const show = text => {
+      cd.textContent = text;
+      cd.classList.remove('tick');
+      cd.getBoundingClientRect();
+      cd.classList.add('tick');
+      Sfx.tick();
+    };
+    const said = Voice.say(C.phrases.rocket);
+    ['3', '2', '1'].forEach((t, i) => setTimeout(() => { if (ep === epoch) show(t); }, 1300 + i * 650));
+    await said;
+    if (ep !== epoch) return false;
+    show('Phóng!');
+    ov.querySelector('.launch').classList.add('go');
+    Sfx.whoosh();
+    const trail = setInterval(() => {
+      const r = ov.querySelector('.rocket-ride');
+      if (ep !== epoch || !r) return clearInterval(trail);
+      const b = r.getBoundingClientRect();
+      Fx.confetti(b.left + b.width * 0.2, b.top + b.height * 0.8, 8, 90, 180, 4, 10);
+    }, 90);
+    await wait(2600);
+    clearInterval(trail);
+    if (ep !== epoch) return false;
+    return reveal(grant('theme'), 'Quà tầng 90');
+  }
+
+  // Tầng 100: cúp, vương miện đội luôn, giấy khen có tên bé, môn và ngày; pháo hoa lớn nhất.
+  async function championGift() {
+    const ep = epoch;
+    const ov = overlay();
+    const p = profile;
+    if (!p.hats.includes('👑')) p.hats.push('👑');
+    p.hat = '👑';
+    Store.save(p);
+    game.gifts.push('👑');
+    const d = new Date();
+    const date = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+    ov.innerHTML = `
+      <div class="reward-card champion">
+        <div class="trophy">${emo('🏆')}</div>
+        <div class="certificate">
+          <p class="cert-title">Giấy khen</p>
+          <p>Tặng bé <b>${esc(p.name || 'Bé')}</b></p>
+          <div class="cert-ava">${avatarHtml(p, true)}</div>
+          <p>đã leo hết <b>100 tầng</b> tháp <b>${esc(game.subject.name)}</b></p>
+          <p class="cert-date">Ngày ${date}</p>
+        </div>
+      </div>`;
+    Sfx.fanfare();
+    const card = ov.querySelector('.reward-card');
+    for (let i = 0; i < 4; i++) {
+      setTimeout(() => {
+        if (ep !== epoch) return;
+        celebrate(card, 3);
+        if (i) Sfx.fanfare();
+      }, i * 2600);
+    }
+    await Voice.say(C.phrases.champion);
+    if (ep !== epoch) return false;
+    await wait(1500);
+    return ep === epoch;
+  }
+
+  // Hộp quà khi xong nhiệm vụ hôm nay; chờ bé bấm "Tiếp tục".
   async function reward(kind) {
     const ep = epoch;
     const sticker = grantSticker();
-    const heading = { milestone: 'Mốc an toàn!', top: 'Đỉnh tháp!', mission: 'Xong nhiệm vụ hôm nay!' }[kind];
-    const ov = $('.overlay');
+    const ov = overlay();
+    Music.pause();
     ov.innerHTML = `
       <div class="reward-card ${kind}">
-        <h2>${heading}</h2>
+        <h2>Xong nhiệm vụ hôm nay!</h2>
         <div class="prize-box">
           <div class="gift">${emo('🎁')}</div>
           <div class="sticker">${emo(sticker || '⭐')}</div>
         </div>
         <p class="reward-note">${sticker ? 'Hình dán mới!' : '+3 sao'}</p>
-        <button class="btn-big nav" id="reward-ok" disabled>Tiếp tục ▶</button>
       </div>`;
     ov.classList.add('show');
     mood('happy');
     await Voice.say(C.phrases[kind]);
     if (ep !== epoch) return;
     ov.querySelector('.reward-card').classList.add('open');
-    Sfx.chest();
+    Sfx.fanfare();
     celebrate(ov.querySelector('.prize-box'), 3);
     await Voice.say(sticker ? C.phrases.sticker : C.phrases.bonus);
     if (ep !== epoch) return;
-    const ok = ov.querySelector('#reward-ok');
-    ok.disabled = false;
-    ok.focus();
-    await new Promise(resolve => { ok.onclick = resolve; });
+    await tapToContinue();
     ov.classList.remove('show');
     ov.innerHTML = '';
+    Music.resume();
+  }
+
+  // Hết tim: không kết thúc tháp mà quay về mốc an toàn gần nhất, tim đầy lại.
+  function outOfHearts() {
+    const g = game;
+    const back = segOf(g.floor);
+    Object.assign(g, { floor: back, seg: back, hearts: HEARTS, owl: 1, swap: 1, combo: 0, retry: [], locked: true });
+    g.seen.clear();
+    saveClimb();
+    Music.pause();
+    const ov = overlay();
+    ov.innerHTML = `
+      <div class="reward-card fall">
+        <div class="end-hero">${emo('💔')}</div>
+        <h2>Hết tim rồi!</h2>
+        <p class="reward-note">${back ? `Quay về mốc ${emo('⛳', 'tiny')} tầng ${back}, tim đầy lại rồi!` : 'Mình leo lại từ tầng 1 nhé.'}</p>
+        <div class="row">
+          <button class="btn-big alt nav" id="stay">Leo tiếp</button>
+          <button class="btn-big danger nav" id="leave">Về nhà</button>
+        </div>
+      </div>`;
+    ov.classList.add('show');
+    mood('think');
+    renderLadder();
+    renderStatus();
+    Voice.say(back ? C.phrases.backToCheckpoint : C.phrases.backToStart);
+    ov.querySelector('#stay').onclick = () => {
+      ov.classList.remove('show');
+      ov.innerHTML = '';
+      Music.resume();
+      nextQuestion();
+    };
+    ov.querySelector('#leave').onclick = () => showHome(false);
+    ov.querySelector('#stay').focus();
   }
 
   function askQuit() {
     const g = game;
-    const ov = $('.overlay');
+    const ov = overlay();
     if (!g || ov.classList.contains('show')) return;
     const wasLocked = g.locked;
     g.locked = true;
     ov.innerHTML = `
       <div class="reward-card quit">
         <h2>Dừng leo tháp?</h2>
-        <p class="reward-note">Lần sau sẽ leo lại từ tầng 1.</p>
+        <p class="reward-note">Lần sau con leo tiếp từ tầng ${g.floor + 1}.</p>
         <div class="row">
           <button class="btn-big alt nav" id="stay">Leo tiếp</button>
           <button class="btn-big danger nav" id="leave">Về nhà</button>
@@ -1304,29 +1965,36 @@
       g.locked = wasLocked;
       if (!g.locked) unlock();
     };
-    ov.querySelector('#leave').onclick = () => showHome(false);
+    ov.querySelector('#leave').onclick = () => {
+      saveClimb();
+      showHome(false);
+    };
     ov.querySelector('#stay').focus();
   }
 
-  async function endTower(won) {
+  // Về đích tầng 100: ghi kỷ lục và cho tháp đó leo lại từ đầu.
+  function crownTower() {
     const g = game;
     const t = towerState(g.subject.id);
-    t.plays++;
-    if (won) t.wins++;
-    t.best = Math.max(t.best, g.floor);
-    profile.plays++;
+    t.best = FLOORS;
+    t.wins++;
+    delete profile.climbs[g.subject.id];
     Store.save(profile);
+  }
+
+  async function endTower() {
+    const g = game;
     const ep = screen('end', `
-      <div class="panel end-card ${won ? 'won' : 'lost'}">
-        <div class="end-hero">${emo(won ? '👑' : '💔')}</div>
-        <h2 class="screen-title">${won ? 'Con lên tới đỉnh tháp!' : 'Hết tim rồi!'}</h2>
+      <div class="panel end-card won">
+        <div class="end-hero">${emo('👑')}</div>
+        <h2 class="screen-title">Con là nhà vô địch tháp ${esc(g.subject.name)}!</h2>
         <div class="end-stats">
-          <span class="chip">${emo('🪜')}<b>${g.floor}/${FLOORS}</b> tầng</span>
+          <span class="chip">${emo('🪜')}<b>${FLOORS}/${FLOORS}</b> tầng</span>
           <span class="chip">${emo('⭐')}<b>${g.stars}</b> sao</span>
         </div>
-        ${g.stickers.length ? `<div class="end-stickers">${g.stickers.map((s, i) => `<span style="--i:${i}">${emo(s)}</span>`).join('')}</div>` : ''}
+        ${g.gifts.length ? `<div class="end-stickers">${g.gifts.slice(-10).map((s, i) => `<span style="--i:${i}">${emo(s)}</span>`).join('')}</div>` : ''}
         <div class="row">
-          <button class="btn-big nav" id="again">↻ Leo lại</button>
+          <button class="btn-big nav" id="again">↻ Leo lại từ đầu</button>
           <button class="btn-big alt nav" id="home">${emo('🏠', 'tiny')} Về nhà</button>
         </div>
       </div>
@@ -1335,14 +2003,10 @@
     $('#home').onclick = () => showHome(false);
     focusFirst('#again');
     game = null;
-    if (won) {
-      mood('happy');
-      celebrate($('.end-hero'), 3);
-    } else {
-      mood('think');
-    }
-    await Voice.say(won ? C.phrases.endStars(g.stars) : C.phrases.endFloors(g.floor));
-    if (ep === epoch && won && g.stars) mood('happy');
+    mood('happy');
+    celebrate($('.end-hero'), 3);
+    await Voice.say(C.phrases.top);
+    if (ep === epoch) mood('happy');
   }
 
   /* ================= Remote tivi và bàn phím ================= */
@@ -1441,7 +2105,19 @@
   // Chỉ để kiểm thử: mở index.html?debug để xem trạng thái trò chơi trong console.
   if (/[?&]debug\b/.test(location.search)) {
     window.BHV = {
-      game: () => game, profile: () => profile, Store, Fx,
+      game: () => game, profile: () => profile, Store, Fx, Music, Sfx,
+      // Đặt tầng hiện tại khi đang trong tháp, ví dụ BHV.setFloor(39) rồi trả lời đúng để tới mốc 40.
+      setFloor(n) {
+        Object.assign(game, { floor: n, seg: segOf(n) });
+        renderLadder();
+        renderStatus();
+        saveClimb();
+      },
+      // Mở thẳng quà của một mốc (10, 20, …, 100) khi đang trong tháp.
+      gift(floor) {
+        game.locked = true;
+        return milestone(floor);
+      },
       ask(skill, level) {
         const q = C.skills[skill].gen(level || 1);
         q.skill = skill;
