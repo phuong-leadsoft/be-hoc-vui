@@ -316,6 +316,7 @@ button:disabled { opacity: .4; cursor: default; }
 .key.right { background: var(--good); }
 .opt.wrong, .key.wrong { animation: shake .5s; box-shadow: 0 0 0 .45rem var(--bad), var(--shadow); }
 .teach { animation: glow 1s ease-in-out infinite !important; }
+.owl-out { opacity: .15 !important; filter: grayscale(1); transform: scale(.85); pointer-events: none; transition: opacity .3s, transform .3s; }
 .wiggle { animation: wiggle .3s !important; }
 
 .action-slot { position: relative; height: 3.2rem; display: grid; place-items: center; }
@@ -575,6 +576,16 @@ body.quake #app, body.quake .overlay { animation: quake .12s linear var(--quake-
 
 /* ---------- Bản nhẹ cho tivi (body.lite): bỏ các hiệu ứng CSS bắt trình duyệt vẽ lại nhiều mỗi khung hình ---------- */
 body.lite .flash { display: none; }
+/* Tắt các chuyển động chạy liên tục (mây, mặt trời, cú, thang tầng, nút) để tivi chỉ vẽ khi cần. */
+body.lite .cloud, body.lite .sun, body.lite .title span, body.lite .tower-icon, body.lite .emo.big,
+body.lite .owl .owl-all, body.lite .owl .eyes, body.lite .climber .ava, body.lite .ava-pet,
+body.lite .floor.milestone .prize, body.lite .floor.next, body.lite .action-slot.lock .lock-btn,
+body.lite .gift .emo, body.lite .seq-item.q, body.lite .box .emo { animation: none; }
+body.lite .scene.party .item:not(.gone), body.lite .scene.party .emo.big { animation: none; }
+body.lite .praise-main { background: none; color: #f97316; -webkit-text-fill-color: #f97316; text-shadow: 0 .4rem 0 rgba(0, 0, 0, .15); }
+body.lite .opt, body.lite .profile-card { box-shadow: 0 .45rem 0 #cbd5e1; }
+body.lite .key { box-shadow: 0 .35rem 0 hsl(var(--h) 70% 38%); }
+body.lite .tower-card { box-shadow: 0 .6rem 0 var(--c); }
 body.lite .shock { box-shadow: none; }
 body.lite .praise-main { animation: none; filter: none; -webkit-text-stroke: .22rem #fff; }
 body.lite .praise-sub { box-shadow: none; }

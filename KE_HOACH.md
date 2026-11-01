@@ -111,6 +111,16 @@ Phụ huynh thấy câu hỏi quá dễ với bé 5 tuổi. Đã làm:
   nghỉ giải lao, nút "Kết thúc giờ nghỉ ngay". Thử nhanh: `BHV.rest(5)`.
 - 5 câu nói mới (`lookCarefully`, `tired`, `breatheIn`, `breatheOut`, `breakDone`) cần chạy `node tools/build.js` trên Mac.
 
+### 4.3e Bớt lặp câu hỏi: ĐÃ XONG (2026-11-01)
+
+- Trước: danh sách câu đã hỏi (`g.seen`) bị xóa mỗi mốc và mỗi lần vào tháp; Đố vui chỉ có 57 câu.
+- Giờ: `profile.qhist[kỹ năng]` nhớ mã (hash) 150 câu gần nhất của từng kỹ năng, không xóa; `makeQuestion()` chọn câu
+  chưa hỏi, hết thì câu cũ nhất. Kỹ năng được chọn theo trọng số √(số câu) (`poolSize()` ước lượng bằng cách tạo thử).
+- Thêm nội dung: câu đố 27 → 70, nghề nghiệp 7 → 14, nhóm "rau củ" và "đồ dùng học tập" cho Không cùng nhóm,
+  Tự nhiên thêm 4 câu con vật ăn gì và 7 câu cuộc sống. Mô phỏng 120 câu tháp Đố vui: lặp 20 câu (trước ~71),
+  câu lặp sớm nhất sau 54 câu (trước ~3). `BHV.sampleQuestions(n)` để thử.
+- Tự nhiên vẫn ít câu (52): nên bổ sung thêm khi có dịp.
+
 ### 4.4 Máy chủ tự chạy khi bật Mac (phụ huynh đã đồng ý)
 
 - Repo đang được làm trong một thư mục tạm; cần clone/đặt ở chỗ cố định, **không** trong Desktop/Documents/Downloads
