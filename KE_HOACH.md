@@ -94,7 +94,12 @@ Phụ huynh thấy câu hỏi quá dễ với bé 5 tuổi. Đã làm:
   Màn vô địch nổ thêm các màn 40, 70, 80, 90.
 - Thử nhanh: `BHV.burst(7)` (màn của tầng 70) trong `index.html?debug`.
 - `Fx.quality` tự giảm số mảnh nếu vẽ chậm (dưới ~33 hình/giây), tự tăng lại khi mượt, lưu trong
-  localStorage `be-hoc-vui:fxq`. Tối đa ~900 mảnh. Cần xem thử trên tivi thật.
+  localStorage `be-hoc-vui:fxq`. Tối đa ~900 mảnh.
+- **Bản nhẹ** (`Fx.lite`, `body.lite`), phụ huynh báo pháo hoa sau câu đúng bị giật trên tivi: khung vẽ độ phân giải
+  0,6, tối đa ~280 mảnh, số mảnh còn ~40% (`Fx.k()`), bỏ lớp chớp sáng và hiệu ứng chữ lấp lánh/đổ bóng.
+  Chế độ lưu theo từng máy (`be-hoc-vui:fxmode`: auto/full/lite, chỉnh ở trang Bố mẹ). Auto: tivi (user agent
+  Web0S…) dùng bản nhẹ ngay; máy khác chuyển sang khi đo thấy dưới ~30 hình/giây (`be-hoc-vui:fxslow`).
+  Đo bằng Playwright với CPU chậm 6 lần: câu đúng từ 17–31 lên ~52–57 hình/giây. `BHV.celebrateTest()` để thử.
 
 ### 4.3d Chống bấm vội, nghỉ giải lao: ĐÃ XONG (2026-11-01)
 

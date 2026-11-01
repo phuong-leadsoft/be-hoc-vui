@@ -573,6 +573,20 @@ body.quake #app, body.quake .overlay { animation: quake .12s linear var(--quake-
 .set-opt.chosen { background: var(--orange); color: #fff; }
 .settings .pill { font-size: 1rem; padding: .05rem .8rem; }
 
+/* ---------- Bản nhẹ cho tivi (body.lite): bỏ các hiệu ứng CSS bắt trình duyệt vẽ lại nhiều mỗi khung hình ---------- */
+body.lite .flash { display: none; }
+body.lite .shock { box-shadow: none; }
+body.lite .praise-main { animation: none; filter: none; -webkit-text-stroke: .22rem #fff; }
+body.lite .praise-sub { box-shadow: none; }
+body.lite .stage.boom { animation: none; }
+body.lite .slam-rays { animation: rays-in .4s ease-out; }
+body.lite .slam-text { text-shadow: 0 .5rem 0 #9a3412; }
+body.lite .slam.rainbow .slam-text { animation: slam-in .5s cubic-bezier(.2, 1.6, .5, 1) backwards; filter: none; }
+body.lite .slam-sub { box-shadow: none; }
+body.lite .disco-lights { animation-duration: 12s; }
+body.lite .sticker::before { animation: none; }
+body.lite .whiteout { animation-duration: .35s; }
+
 /* ---------- Khung cảnh mở được ở các mốc (đổi nền cả app) ---------- */
 body { transition: background .8s; }
 .sun, .hills path, .cloud { transition: background .8s, fill .8s, opacity .8s; }

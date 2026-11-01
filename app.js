@@ -314,6 +314,23 @@
       o.start(t);
       o.stop(t + dur + 0.05);
     },
+    // Tạo sẵn các đoạn tiếng ồn dùng cho tiếng nổ, để lần ăn mừng đầu tiên không bị khựng.
+    warm() {
+      const c = this.ctx;
+      if (!c) return;
+      if (!this.noise) {
+        const len = Math.floor(c.sampleRate * 0.6);
+        this.noise = c.createBuffer(1, len, c.sampleRate);
+        const d = this.noise.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 4);
+      }
+      if (!this.white) {
+        const len = c.sampleRate * 2;
+        this.white = c.createBuffer(1, len, c.sampleRate);
+        const d = this.white.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      }
+    },
     // Một tiếng ồn ngắn qua bộ lọc: trống, chũm chọe, tiếng xì.
     noiseHit(start, dur, freq, ftype, vol, dest) {
       const c = this.ctx;
@@ -635,6 +652,12 @@
 
   /* ================= Pháo hoa, pháo giấy (vẽ bằng canvas cho nhẹ trên tivi) ================= */
 
+  // Chế độ hiệu ứng của máy này (lưu riêng từng máy, không theo hồ sơ): 'auto' tự chọn, 'full' đầy đủ, 'lite' nhẹ.
+  // Tivi (webOS…) có chip đồ họa yếu: 'auto' dùng bản nhẹ ngay, máy khác thì chuyển sang nhẹ khi đo thấy vẽ chậm.
+  const FX_MODE_KEY = 'be-hoc-vui:fxmode';
+  const FX_SLOW_KEY = 'be-hoc-vui:fxslow';
+  const IS_TV = /Web0S|webOS|SmartTV|SMART-TV|NetCast|Tizen|HbbTV|BRAVIA/i.test(navigator.userAgent);
+
   const FX_COLORS = ['#f43f5e', '#f59e0b', '#facc15', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899'];
 
   // Hình cho pháo hoa nổ thành hình: mỗi hàm trả về n điểm (x, y) cỡ khoảng -1..1.
@@ -688,6 +711,21 @@
     quality: Math.max(0.35, Math.min(1, +readLocal('be-hoc-vui:fxq', 1) || 1)),
     emitters: [],     // nguồn phun liên tục trong một khoảng thời gian (dải ngân hà, núi lửa)
     ema: 1 / 60,
+    lite: false,
+
+    // Hệ số số mảnh: chất lượng tự điều chỉnh, bản nhẹ còn khoảng 40%.
+    k() { return this.quality * (this.lite ? 0.4 : 1); },
+
+    // Bật/tắt bản nhẹ: khung vẽ độ phân giải thấp, ít mảnh, bỏ các lớp CSS tốn sức vẽ (body.lite).
+    setLite(on) {
+      this.lite = !!on;
+      document.body.classList.toggle('lite', this.lite);
+      if (this.fit) this.fit();
+    },
+    applyMode() {
+      const mode = readLocal(FX_MODE_KEY, 'auto');
+      this.setLite(mode === 'lite' || (mode === 'auto' && (IS_TV || readLocal(FX_SLOW_KEY, false) === true)));
+    },
 
     ensure() {
       if (this.canvas) return;
@@ -697,22 +735,24 @@
       this.canvas = c;
       this.ctx = c.getContext('2d');
       const fit = () => {
-        this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+        this.dpr = this.lite ? 0.6 : Math.min(window.devicePixelRatio || 1, 2);
         c.width = Math.round(innerWidth * this.dpr);
         c.height = Math.round(innerHeight * this.dpr);
       };
+      this.fit = fit;
       fit();
       window.addEventListener('resize', fit);
     },
 
     add(p, force) {
-      if (force || this.parts.length < 900 * this.quality) this.parts.push(p);
+      if (force || this.parts.length < (this.lite ? 280 : 900) * this.quality) this.parts.push(p);
     },
 
     // Pháo giấy bắn từ (x, y) theo góc a0..a1 độ (-90 = thẳng lên), tốc độ s0..s1 rem/giây.
     confetti(x, y, n, a0, a1, s0, s1) {
       this.ensure();
       const u = rem();
+      n = Math.max(3, Math.round(n * (this.lite ? 0.35 : 1)));
       for (let i = 0; i < n; i++) {
         const a = ((a0 + Math.random() * (a1 - a0)) * Math.PI) / 180;
         const s = (s0 + Math.random() * (s1 - s0)) * u;
@@ -720,7 +760,7 @@
         this.add({
           x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: 30 * u, drag: 0.985,
           size: (0.4 + Math.random() * 0.5) * u, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 16,
-          color: pick(FX_COLORS), shape: r < 0.15 ? 'star' : r < 0.65 ? 'rect' : 'dot',
+          color: pick(FX_COLORS), shape: this.lite ? (r < 0.6 ? 'rect' : 'dot') : r < 0.15 ? 'star' : r < 0.65 ? 'rect' : 'dot',
           life: 1.8 + Math.random() * 1.4, fade: 0.6,
         });
       }
@@ -739,7 +779,7 @@
       this.ensure();
       const u = rem();
       const color = pick(FX_COLORS);
-      n = Math.round(n * this.quality);
+      n = Math.round(n * this.k());
       if (type === 'willow') {
         for (let i = 0; i < n; i++) {
           const a = Math.random() * Math.PI * 2;
@@ -767,7 +807,7 @@
         Sfx.crackle(0.6, 14);
       } else if (SHAPES[type]) {
         // Pháo hoa nổ thành hình: trái tim, ngôi sao, mặt cười, bông hoa.
-        const pts = SHAPES[type](Math.max(60, Math.round(90 * this.quality)));
+        const pts = SHAPES[type](Math.max(this.lite ? 36 : 60, Math.round(90 * this.k())));
         const c = type === 'heart' ? '#f43f5e' : color;
         const k = (14 + Math.random() * 3) * u;
         for (const [px, py] of pts) {
@@ -814,7 +854,7 @@
     confettiRain(n) {
       this.ensure();
       const u = rem();
-      n = Math.round(n * this.quality);
+      n = Math.round(n * this.k());
       for (let i = 0; i < n; i++) {
         const r = Math.random();
         this.add({
@@ -895,7 +935,7 @@
     fountain(x, sec, power) {
       const u = rem();
       this.emit(sec, dt => {
-        const n = Math.round((90 + power * 12) * dt * this.quality * 3);
+        const n = Math.round((90 + power * 12) * dt * this.k() * 3);
         for (let i = 0; i < n; i++) {
           const a = (-90 + (Math.random() - 0.5) * 26) * Math.PI / 180;
           const sp = (16 + Math.random() * (8 + power)) * u;
@@ -909,7 +949,7 @@
     galaxy(x, y, sec) {
       const u = rem();
       this.emit(sec, (dt, t) => {
-        const n = Math.max(1, Math.round(5 * this.quality));
+        const n = Math.max(1, Math.round(5 * this.k()));
         for (let arm = 0; arm < 3; arm++) {
           for (let i = 0; i < n; i++) {
             const a = t * 7 + arm * (Math.PI * 2 / 3) + (Math.random() - 0.5) * 0.3;
@@ -960,7 +1000,7 @@
     coins(n) {
       this.ensure();
       const u = rem();
-      n = Math.round(n * this.quality);
+      n = Math.round(n * this.k());
       for (let i = 0; i < n; i++) {
         this.add({
           x: Math.random() * innerWidth, y: -u * (1 + Math.random() * 8), vx: (Math.random() - 0.5) * 4 * u, vy: (4 + Math.random() * 6) * u,
@@ -987,6 +1027,11 @@
       ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       // Đo tốc độ vẽ: chậm quá (dưới ~33 hình/giây khi đang nhiều mảnh) thì giảm dần số mảnh.
       this.ema = this.ema * 0.92 + dt * 0.08;
+      // Chế độ tự động: đang vẽ hơn 80 mảnh mà dưới ~30 hình/giây thì chuyển hẳn sang bản nhẹ và nhớ cho lần sau.
+      if (!this.lite && this.parts.length > 80 && this.ema > 0.033 && readLocal(FX_MODE_KEY, 'auto') === 'auto') {
+        this.setLite(true);
+        writeLocal(FX_SLOW_KEY, true);
+      }
       if (this.parts.length > 200 && this.ema > 0.03 && this.quality > 0.35) {
         this.quality = Math.max(0.35, this.quality - 0.01);
         writeLocal('be-hoc-vui:fxq', this.quality);
@@ -1008,7 +1053,7 @@
       const trail = [];
       const u = rem();
       for (const p of this.parts) {
-        if (p.trail) {
+        if (p.trail && (!this.lite || Math.random() < 0.4)) {
           trail.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * u, vy: Math.random() * 2 * u, g: 4 * u, drag: 0.9, size: (p.trailSize || 0.22) * u,
             rot: 0, vr: 0, color: Array.isArray(p.trail) ? pick(p.trail) : Math.random() < 0.5 ? '#fde68a' : '#fb923c', shape: 'dot',
             life: 0.3 + Math.random() * 0.25, fade: 0.3 });
@@ -1165,9 +1210,9 @@
     fxEl('shock', `left:${x}px;top:${y}px`, 800);
     Fx.confetti(x, y, 25 + power * 25, -170, -10, 8, 22);
     if (power < 2) return;
-    fxEl('flash', `--x:${x}px;--y:${y}px`, 700);
+    if (!Fx.lite) fxEl('flash', `--x:${x}px;--y:${y}px`, 700);
     Fx.cannons(power >= 3 ? 70 : 40);
-    const shells = power >= 3 ? 5 : 2;
+    const shells = Fx.lite ? (power >= 3 ? 2 : 1) : power >= 3 ? 5 : 2;
     for (let i = 0; i < shells; i++) {
       setTimeout(() => {
         Fx.firework(innerWidth * (0.15 + Math.random() * 0.6), innerHeight * (0.12 + Math.random() * 0.3), 60);
@@ -1203,7 +1248,7 @@
   // Mỗi mốc một màn hiệu ứng riêng, mốc sau hoành tráng hơn mốc trước. pw = độ mạnh 1–10.
   const BURSTS = {
     1: { name: 'Bão pháo giấy!', run(pw) {
-      Fx.cannons(Math.round(80 * Fx.quality));
+      Fx.cannons(Math.round(80 * Fx.k()));
       Fx.confettiRain(90 + pw * 10);
       later(700, () => Fx.confettiRain(70 + pw * 10));
       later(300, () => Fx.rocket(rx(0.2, 0.4), ry(0.15, 0.3), 'peony'));
@@ -1212,7 +1257,7 @@
     2: { name: 'Bóng bay!', run(pw) {
       const n = 14 + pw * 2;
       for (let i = 0; i < n; i++) Fx.balloon(rx(0.05, 0.95), i * 0.06);
-      Fx.cannons(Math.round(40 * Fx.quality));
+      Fx.cannons(Math.round(40 * Fx.k()));
       later(1600, () => Fx.rocket(innerWidth / 2, ry(0.15, 0.25), 'ring'));
     } },
     3: { name: 'Sao băng!', run(pw) {
@@ -1228,7 +1273,7 @@
       const shapes = C.util.shuffle(['heart', 'star5', 'smile', 'flower']);
       const n = 4 + Math.floor(pw / 2);
       for (let i = 0; i < n; i++) later(i * 380, () => Fx.rocket(innerWidth * (0.15 + (0.7 * i) / Math.max(1, n - 1)), ry(0.15, 0.32), shapes[i % 4]));
-      Fx.cannons(Math.round(40 * Fx.quality));
+      Fx.cannons(Math.round(40 * Fx.k()));
     } },
     5: { name: 'Cầu vồng!', run(pw) {
       fxEl('rainbow', '', 3400);
@@ -1358,6 +1403,8 @@
     setTimeout(enable, 3000);
     btn.onclick = () => {
       Sfx.init();
+      Sfx.warm();
+      Fx.ensure();
       showProfiles(true);
     };
   }
@@ -1595,6 +1642,8 @@
           ${setRow('Nghỉ giải lao khi hết tim 2 lần trong 10 phút', 'breakOn', [[true, 'Bật'], [false, 'Tắt']], p.settings.breakOn)}
           ${setRow('Thời gian nghỉ', 'breakMin', [[1, '1 phút'], [2, '2 phút'], [3, '3 phút']], p.settings.breakMin)}
           ${setRow('Chờ tối đa khi sai liên tiếp', 'maxCooldown', [3, 6, 10, 15].map(n => [n, n + ' giây']), p.settings.maxCooldown)}
+          ${setRow('Hiệu ứng trên máy này', 'fxmode', [['auto', 'Tự động'], ['full', 'Đầy đủ'], ['lite', 'Nhẹ (cho tivi)']], readLocal(FX_MODE_KEY, 'auto'))}
+          <p class="meta muted">Đang dùng: ${Fx.lite ? 'bản nhẹ' : 'bản đầy đủ'}${IS_TV ? ' (máy này là tivi)' : ''}. Pháo hoa bị giật thì chọn "Nhẹ".</p>
           <p class="meta">Bấm vội rồi sai: <b>${p.rushes}</b> lần · Đã nghỉ giải lao: <b>${p.breakCount}</b> lần
             ${p.breakUntil > Date.now() ? ' · <b>đang trong giờ nghỉ</b> <button class="pill nav" id="endbreak">Kết thúc giờ nghỉ ngay</button>' : ''}</p>
         </div>
@@ -1631,8 +1680,14 @@
     app.querySelectorAll('.set-opt').forEach(b => {
       b.onclick = () => {
         const v = b.dataset.val;
-        p.settings[b.dataset.key] = v === 'true' ? true : v === 'false' ? false : +v;
-        Store.save(p);
+        if (b.dataset.key === 'fxmode') {
+          writeLocal(FX_MODE_KEY, v);
+          writeLocal(FX_SLOW_KEY, false);
+          Fx.applyMode();
+        } else {
+          p.settings[b.dataset.key] = v === 'true' ? true : v === 'false' ? false : +v;
+          Store.save(p);
+        }
         showParents();
         focusFirst(`.set-opt[data-key="${b.dataset.key}"][data-val="${v}"]`);
       };
@@ -2923,6 +2978,12 @@
       },
       // Xem riêng màn nổ của một mốc: BHV.burst(7) là màn sấm sét của tầng 70.
       burst(n) { megaBurst(`TẦNG ${n * 10}!`, n); },
+      // Đo hiệu ứng câu đúng: giả lập một câu đúng ngay với chuỗi 3 câu.
+      celebrateTest() {
+        const btn = document.querySelector('.options button');
+        celebrate(btn, 3);
+        showPraise('Giỏi quá!', '3 câu liên tiếp!');
+      },
       // Thử nghỉ giải lao: BHV.rest(5) nghỉ 5 giây.
       rest(sec) { profile.breakUntil = Date.now() + (sec || 5) * 1000; showBreak((game && game.subject.id) || 'math'); },
       // Mở thẳng quà của một mốc (10, 20, …, 100) khi đang trong tháp.
@@ -2938,5 +2999,6 @@
     };
   }
 
+  Fx.applyMode();
   showSplash();
 })();
