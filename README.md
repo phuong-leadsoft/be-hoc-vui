@@ -11,6 +11,19 @@ python3 serve.py
 Mở địa chỉ được in ra (ví dụ `http://192.168.1.154:8080`) trên tivi LG, iPad hoặc máy tính trong cùng mạng Wi‑Fi.
 Hồ sơ của bé được lưu vào `data/profiles.json` trên máy Mac (và trong trình duyệt), nên hôm sau mở trên thiết bị nào cũng học tiếp được.
 
+## Mở trên tivi qua Internet (GitHub Pages)
+
+Mỗi khi nhánh `main` thay đổi, app được đưa lên **https://phuong-leadsoft.github.io/be-hoc-vui/**
+(workflow `.github/workflows/pages.yml`). Mở địa chỉ này bằng trình duyệt Web của tivi rồi lưu dấu trang,
+không cần bật máy Mac. Gõ địa chỉ bằng remote thì chậm; có thể mở từ máy Mac bằng:
+
+```bash
+uv run tools/lgtv.py open https://phuong-leadsoft.github.io/be-hoc-vui/
+```
+
+Bản này không đồng bộ hồ sơ với `serve.py` (trang https không được gọi máy chủ http trong nhà):
+tiến độ của bé chỉ lưu trong trình duyệt của tivi.
+
 ## Cài lên tivi LG (biểu tượng trên launcher)
 
 Cần bật Developer Mode trên tivi: cài app **Developer Mode** từ LG Content Store, đăng nhập tài khoản
@@ -26,13 +39,19 @@ Phiên Developer Mode có thời hạn: thỉnh thoảng mở app Developer Mode
 
 ## Luật chơi
 
-- Tháp 10 tầng; mỗi câu đúng ngay lần đầu được 1 sao và lên 1 tầng. Tầng 5 và 10 có quà (hình dán).
+- Mỗi môn là một tháp **100 tầng**; mỗi câu đúng ngay lần đầu được 1 sao và lên 1 tầng.
+- Cứ 10 tầng là một **mốc an toàn** có quà bí mật: hình dán, mũ cho bạn thú, trứng nở thú cưng, khung cảnh mới,
+  lễ hội nửa đường, mưa sao, tên lửa… Tầng 100 là cúp, vương miện và giấy khen.
+- Tiến độ được lưu sau mỗi câu: lần sau vào tháp là leo tiếp đúng tầng đó (số tim còn lại cũng được giữ).
 - Phải bấm chọn rồi bấm **Chốt!** (hoặc bấm lại ô đó) mới tính.
 - Chưa đọc xong câu hỏi thì chưa bấm được. Mỗi lần sai mất 1 trái tim, khóa 3 giây và đáp án bị xáo lại.
-- Sai 2 lần: cú dạy lại, bé tự chọn đúng nhưng không lên tầng, câu đó quay lại sau 2 câu. Hết 3 tim là hết lượt.
-- Quyền trợ giúp mỗi tháp: **Hỏi Cú** (giải thích, không có sao) và **Đổi câu**.
+- Sai 2 lần: cú dạy lại, bé tự chọn đúng nhưng không lên tầng, câu đó quay lại sau 2 câu.
+- Hết 3 tim: quay về mốc an toàn gần nhất, tim đầy lại. Tới mốc mới cũng được nạp đầy tim.
+- Quyền trợ giúp mỗi đoạn 10 tầng: **Hỏi Cú** (giải thích, không có sao) và **Đổi câu**.
 - Độ khó tự tăng khi bé đúng ngay 7/8 câu gần nhất của một kỹ năng, tự giảm khi sai nhiều.
+  Tầng 1–20 dễ hơn một bậc, tầng 61–100 khó hơn một bậc.
 - Nhiệm vụ mỗi ngày: 15 câu đúng ngay. Chuỗi ngày học liên tiếp hiện ở trang chủ.
+- Nhạc nền khi leo tháp bật/tắt bằng nút 🎵 ở góc trên.
 
 ## Sửa nội dung
 

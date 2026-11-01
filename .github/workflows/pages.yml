@@ -1,0 +1,38 @@
+# Đưa app lên GitHub Pages mỗi khi nhánh main thay đổi, để mở trên trình duyệt tivi:
+#   https://phuong-leadsoft.github.io/be-hoc-vui/
+# Lần đầu cần bật trong Settings → Pages → Source: GitHub Actions.
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      # Chỉ đưa lên phần app chạy trong trình duyệt, không có serve.py, tools/ và tài liệu.
+      - name: Gom các tệp của app
+        run: |
+          mkdir _site
+          cp -r index.html app.js content.js style.css audio img _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
