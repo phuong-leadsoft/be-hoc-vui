@@ -96,6 +96,16 @@ Phụ huynh thấy câu hỏi quá dễ với bé 5 tuổi. Đã làm:
 - `Fx.quality` tự giảm số mảnh nếu vẽ chậm (dưới ~33 hình/giây), tự tăng lại khi mượt, lưu trong
   localStorage `be-hoc-vui:fxq`. Tối đa ~900 mảnh. Cần xem thử trên tivi thật.
 
+### 4.3d Chống bấm vội, nghỉ giải lao: ĐÃ XONG (2026-11-01)
+
+- `cooldownMs()`: sai liên tiếp (`game.wrongRun`) chờ 3 → 6 → 10 → 15 giây, giới hạn bởi `settings.maxCooldown`;
+  đúng ngay thì về lại.
+- Bấm vội: chốt sai trong 2,5 giây sau `unlock()` → `profile.rushes++`, câu sau chạy `thinkPause()` (đếm 3-2-1).
+- `showBreak()`: hết tim 2 lần trong 10 phút (`profile.outs`) → nghỉ `settings.breakMin` phút; `profile.breakUntil` lưu
+  trong hồ sơ nên vào lại tháp vẫn phải nghỉ tiếp. Trang Bố mẹ: bật/tắt, số phút, chờ tối đa, số lần bấm vội và
+  nghỉ giải lao, nút "Kết thúc giờ nghỉ ngay". Thử nhanh: `BHV.rest(5)`.
+- 5 câu nói mới (`lookCarefully`, `tired`, `breatheIn`, `breatheOut`, `breakDone`) cần chạy `node tools/build.js` trên Mac.
+
 ### 4.4 Máy chủ tự chạy khi bật Mac (phụ huynh đã đồng ý)
 
 - Repo đang được làm trong một thư mục tạm; cần clone/đặt ở chỗ cố định, **không** trong Desktop/Documents/Downloads

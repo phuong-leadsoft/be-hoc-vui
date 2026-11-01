@@ -11,7 +11,10 @@
   const SEGMENT = 10;           // mỗi 10 tầng là một mốc an toàn có quà
   const HEARTS = 3;
   const DAILY_GOAL = 15;        // số câu đúng ngay mỗi ngày để xong nhiệm vụ
-  const COOLDOWN_MS = 3000;     // khóa đáp án sau mỗi lần sai
+  const COOLDOWN_STEPS = [3, 6, 10, 15];   // giây chờ khi sai liên tiếp: lần 1, 2, 3, 4+ (giới hạn theo cài đặt của bố mẹ)
+  const RUSH_MS = 2500;         // chốt sai trong 2,5 giây sau khi được bấm = bấm vội
+  const BREAK_WINDOW = 10 * 60 * 1000;   // hết tim 2 lần trong 10 phút thì nghỉ giải lao
+  const BREAK_AFTER = 2;
   const RETRY_AFTER = 2;        // câu phải dạy lại sẽ quay lại sau 2 câu
   const CONFIRM_TIMES = 3;      // nhắc "bấm chốt" ở 3 câu đầu mỗi tháp
   const LEVEL_UP = { last: 6, need: 5 };    // đúng ngay 5/6 câu gần nhất thì lên cấp
@@ -54,6 +57,12 @@
     p.themes = p.themes || [];
     p.theme = p.theme || null;
     p.golden = p.golden || [];
+    // Cài đặt của bố mẹ: nghỉ giải lao (bật/tắt, số phút) và thời gian chờ tối đa khi sai liên tiếp (giây).
+    p.settings = Object.assign({ breakOn: true, breakMin: 2, maxCooldown: 10 }, p.settings);
+    p.rushes = p.rushes || 0;          // số lần bấm vội rồi sai
+    p.breakCount = p.breakCount || 0;  // số lần phải nghỉ giải lao
+    p.outs = p.outs || [];             // thời điểm các lần hết tim gần đây
+    p.breakUntil = p.breakUntil || 0;
     return p;
   }
 
@@ -586,7 +595,7 @@
   function mood(name) {
     const o = $('.owl');
     if (!o) return;
-    o.classList.remove('happy', 'think');
+    o.classList.remove('happy', 'think', 'sleep');
     if (name !== 'idle') {
       o.getBoundingClientRect();
       o.classList.add(name);
@@ -1566,6 +1575,11 @@
     focusFirst('#back');
   }
 
+  const setRow = (label, key, opts, cur) => `
+    <div class="set-row"><span class="meta">${esc(label)}:</span>
+      ${opts.map(([v, t]) => `<button class="set-opt nav${v === cur ? ' chosen' : ''}" data-key="${key}" data-val="${v}">${esc(t)}</button>`).join('')}
+    </div>`;
+
   function showParents() {
     const p = profile;
     const days = Object.keys(p.days).sort().slice(-14);
@@ -1577,6 +1591,13 @@
           Lưu tiến độ: ${Store.server ? 'máy chủ trong nhà (serve.py) và trình duyệt này' : 'chỉ trong trình duyệt này'}
         </p>
         <div class="age-row small"><span class="meta">Tuổi:</span>${ageButtons(p.age)}</div>
+        <div class="settings">
+          ${setRow('Nghỉ giải lao khi hết tim 2 lần trong 10 phút', 'breakOn', [[true, 'Bật'], [false, 'Tắt']], p.settings.breakOn)}
+          ${setRow('Thời gian nghỉ', 'breakMin', [[1, '1 phút'], [2, '2 phút'], [3, '3 phút']], p.settings.breakMin)}
+          ${setRow('Chờ tối đa khi sai liên tiếp', 'maxCooldown', [3, 6, 10, 15].map(n => [n, n + ' giây']), p.settings.maxCooldown)}
+          <p class="meta">Bấm vội rồi sai: <b>${p.rushes}</b> lần · Đã nghỉ giải lao: <b>${p.breakCount}</b> lần
+            ${p.breakUntil > Date.now() ? ' · <b>đang trong giờ nghỉ</b> <button class="pill nav" id="endbreak">Kết thúc giờ nghỉ ngay</button>' : ''}</p>
+        </div>
         <p class="meta muted">Đổi tuổi sẽ đặt lại cấp độ của mọi kỹ năng theo tuổi mới; sau đó độ khó tự tăng giảm theo kết quả của bé.</p>
         <div class="row">
           <button class="btn-big nav" id="back">← Về nhà</button>
@@ -1607,6 +1628,22 @@
         <p class="credits">Hình minh họa: Twemoji (CC-BY 4.0). Giọng đọc: Linh (macOS).</p>
       </div>`);
     $('#back').onclick = () => showHome(false);
+    app.querySelectorAll('.set-opt').forEach(b => {
+      b.onclick = () => {
+        const v = b.dataset.val;
+        p.settings[b.dataset.key] = v === 'true' ? true : v === 'false' ? false : +v;
+        Store.save(p);
+        showParents();
+        focusFirst(`.set-opt[data-key="${b.dataset.key}"][data-val="${v}"]`);
+      };
+    });
+    if ($('#endbreak')) {
+      $('#endbreak').onclick = () => {
+        p.breakUntil = 0;
+        Store.save(p);
+        showParents();
+      };
+    }
     app.querySelectorAll('.age-opt').forEach(b => {
       b.onclick = () => {
         if (+b.dataset.age === p.age) return;
@@ -1631,6 +1668,7 @@
 
   // Vào tháp: leo tiếp đúng tầng, số tim và quyền trợ giúp đã lưu (thoát giữa chừng không được nạp lại tim).
   function startTower(subjectId) {
+    if (profile.breakUntil > Date.now()) return showBreak(subjectId);
     const subject = C.subjects.find(s => s.id === subjectId);
     const c = climbOf(profile, subjectId);
     const resumed = c.floor > 0 || c.hearts < HEARTS;
@@ -1638,6 +1676,7 @@
       subject, floor: c.floor, seg: segOf(c.floor), hearts: Math.max(1, Math.min(HEARTS, c.hearts)), owl: c.owl, swap: c.swap,
       stars: 0, combo: 0, asked: 0, confirmSaid: 0, retry: [], recent: [], seen: new Set(), gifts: [],
       q: null, tries: 0, taught: false, helped: false, selected: null, locked: true, teaching: false,
+      wrongRun: 0, slowNext: false, unlockedAt: 0,
     };
     towerState(subjectId).plays++;
     profile.plays++;
@@ -1790,7 +1829,34 @@
     }
     await Voice.say(q.say);
     if (ep !== epoch) return;
+    // Câu trước bé bấm vội rồi sai: đếm 3-2-1 cho bé nhìn kỹ rồi mới được bấm.
+    if (g.slowNext) {
+      g.slowNext = false;
+      await thinkPause();
+      if (ep !== epoch) return;
+    }
     unlock();
+  }
+
+  async function thinkPause() {
+    const ep = epoch;
+    const box = $('.options');
+    box.classList.add('thinking');
+    box.insertAdjacentHTML('beforeend', `<div class="think-count">${emo('⏳')}</div>`);
+    const el = box.querySelector('.think-count');
+    await Voice.say(C.phrases.lookCarefully);
+    for (const n of [3, 2, 1]) {
+      if (ep !== epoch) return;
+      el.textContent = n;
+      el.classList.remove('tick');
+      el.getBoundingClientRect();
+      el.classList.add('tick');
+      Sfx.tick();
+      await Promise.all([Voice.say(C.NUM[n]), wait(900)]);
+    }
+    if (ep !== epoch) return;
+    el.remove();
+    box.classList.remove('thinking');
   }
 
   function group(e, n, keep, cls) {
@@ -1883,6 +1949,7 @@
   function unlock() {
     const g = game;
     g.locked = false;
+    g.unlockedAt = Date.now();
     $('.options').classList.remove('waiting', 'cooling');
     if (keyMode && !$('.options').contains(document.activeElement)) {
       const first = $('.options .teach') || optionButtons()[0];
@@ -1934,6 +2001,11 @@
     btn.classList.remove('locking', 'picked');
     g.selected = null;
     const ok = btn.dataset.val === String(g.q.answer);
+    // Bấm vội (chốt rất nhanh sau khi được bấm) mà sai: câu sau phải đếm 3-2-1 mới được chọn.
+    if (!ok && Date.now() - g.unlockedAt < RUSH_MS + 1100) {
+      g.slowNext = true;
+      profile.rushes++;
+    }
     if (g.tries === 0) g.result = recordAttempt(g.q.skill, ok && !g.helped, !g.q.isRetry);
     if (ok) onRight(btn, ep);
     else onWrong(btn, ep);
@@ -1946,6 +2018,7 @@
     const climb = !g.taught;
     const res = g.tries === 0 ? g.result : { levelUp: false, missionDone: false };
     g.combo = first ? g.combo + 1 : 0;
+    if (first) g.wrongRun = 0;
     const power = !first ? 1 : g.combo >= 3 ? 3 : 2;
     const praise = first ? pick(C.phrases.praise) : climb ? C.phrases.praiseAfter : C.phrases.praiseTaught;
     btn.classList.add('right');
@@ -2005,6 +2078,7 @@
     const q = g.q;
     g.tries++;
     g.combo = 0;
+    g.wrongRun++;
     btn.classList.add('wrong');
     setTimeout(() => btn.classList.remove('wrong'), 700);
     Sfx.wrong();
@@ -2023,7 +2097,7 @@
     if (g.tries === 1) {
       if (q.countAlong) hintPulse();
       const hint = g.hearts === 1 ? C.phrases.lastHeart : q.countAlong ? C.phrases.countHint : pick(C.phrases.wrong);
-      await Promise.all([Voice.say(hint), cooldown(COOLDOWN_MS)]);
+      await Promise.all([Voice.say(hint), cooldown(cooldownMs())]);
       if (ep !== epoch) return;
       reshuffle(q);
       unlock();
@@ -2033,10 +2107,17 @@
       g.taught = true;
       unlock();
     } else {
-      await Promise.all([Voice.say(C.phrases.teachDone), cooldown(COOLDOWN_MS)]);
+      await Promise.all([Voice.say(C.phrases.teachDone), cooldown(cooldownMs())]);
       if (ep !== epoch) return;
       unlock();
     }
+  }
+
+  // Sai liên tiếp thì chờ lâu dần: 3, 6, 10 giây… (tối đa theo cài đặt), đúng ngay một câu là về lại 3 giây.
+  function cooldownMs() {
+    const max = profile.settings.maxCooldown;
+    const step = COOLDOWN_STEPS[Math.min(game.wrongRun, COOLDOWN_STEPS.length) - 1] || COOLDOWN_STEPS[0];
+    return Math.min(step, max) * 1000;
   }
 
   function cooldown(ms) {
@@ -2547,6 +2628,19 @@
     Object.assign(g, { floor: back, seg: back, hearts: HEARTS, owl: 1, swap: 1, combo: 0, retry: [], locked: true });
     g.seen.clear();
     saveClimb();
+    // Hết tim 2 lần trong 10 phút: bé đang mệt hoặc mất tập trung, cho nghỉ giải lao.
+    const p = profile;
+    const now = Date.now();
+    p.outs = p.outs.filter(t => now - t < BREAK_WINDOW).concat(now);
+    if (p.settings.breakOn && p.outs.length >= BREAK_AFTER) {
+      p.outs = [];
+      p.breakUntil = now + p.settings.breakMin * 60000;
+      p.breakCount++;
+      Store.save(p);
+      showBreak(g.subject.id);
+      return;
+    }
+    Store.save(p);
     Music.pause();
     const ov = overlay();
     ov.innerHTML = `
@@ -2572,6 +2666,63 @@
     };
     ov.querySelector('#leave').onclick = () => showHome(false);
     ov.querySelector('#stay').focus();
+  }
+
+  // Nghỉ giải lao: cú ngủ, đồng hồ cát đếm ngược, quả bóng thở to nhỏ hướng dẫn hít thở.
+  // Giờ nghỉ lưu trong hồ sơ, nên về nhà rồi vào lại tháp vẫn phải nghỉ cho hết giờ.
+  function showBreak(subjectId) {
+    const p = profile;
+    game = null;
+    const ep = screen('break', `
+      <div class="panel break-card">
+        <div class="break-owl"><div class="owl-slot"></div><span class="zzz"><i>z</i><i>z</i><i>z</i></span></div>
+        <h2 class="screen-title">Cú mệt rồi, mình nghỉ một chút nhé!</h2>
+        <div class="breath"><div class="breath-ball"></div><b class="breath-text">Hít vào…</b></div>
+        <div class="hourglass">${emo('⏳')}<b class="break-time"></b></div>
+        <div class="row">
+          <button class="btn-big alt nav" id="go" disabled>Leo tiếp ▶</button>
+          <button class="btn-big nav" id="home">${emo('🏠', 'tiny')} Về nhà</button>
+        </div>
+      </div>`);
+    mood('sleep');
+    $('#home').onclick = () => showHome(false);
+    $('#go').onclick = () => startTower(subjectId);
+    focusFirst('#home');
+    const timeEl = $('.break-time');
+    const breathEl = $('.breath-text');
+    let cycle = -1;
+    const start = Date.now();
+    const tick = () => {
+      if (ep !== epoch) return clearInterval(timer);
+      const left = Math.max(0, p.breakUntil - Date.now());
+      const sec = Math.ceil(left / 1000);
+      timeEl.textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+      // Mỗi nhịp 4 giây đổi hít vào / thở ra; cú nhắc bằng giọng ở 3 nhịp thở đầu.
+      const c = Math.floor((Date.now() - start) / 4000);
+      if (c !== cycle && left > 0) {
+        cycle = c;
+        const inhale = c % 2 === 0;
+        breathEl.textContent = inhale ? 'Hít vào…' : 'Thở ra…';
+        if (c >= 2 && c <= 7) Voice.say(inhale ? C.phrases.breatheIn : C.phrases.breatheOut);
+      }
+      if (left <= 0) {
+        clearInterval(timer);
+        p.breakUntil = 0;
+        Store.save(p);
+        breathEl.textContent = 'Xong rồi!';
+        $('.break-card').classList.add('done');
+        $('.break-card .screen-title').textContent = 'Hết giờ nghỉ rồi! Leo tiếp nào!';
+        mood('happy');
+        Sfx.chest();
+        const go = $('#go');
+        go.disabled = false;
+        go.focus();
+        Voice.say(C.phrases.breakDone);
+      }
+    };
+    const timer = setInterval(tick, 250);
+    tick();
+    Voice.say(C.phrases.tired);
   }
 
   function askQuit() {
@@ -2655,7 +2806,7 @@
       } else {
         askQuit();
       }
-    } else if (s === 'screen-end' || s === 'screen-album' || s === 'screen-parents') {
+    } else if (s === 'screen-end' || s === 'screen-album' || s === 'screen-parents' || s === 'screen-break') {
       showHome(false);
     } else if (s === 'screen-home' || s === 'screen-newprofile' || s === 'screen-age') {
       showProfiles(false);
@@ -2747,6 +2898,8 @@
       },
       // Xem riêng màn nổ của một mốc: BHV.burst(7) là màn sấm sét của tầng 70.
       burst(n) { megaBurst(`TẦNG ${n * 10}!`, n); },
+      // Thử nghỉ giải lao: BHV.rest(5) nghỉ 5 giây.
+      rest(sec) { profile.breakUntil = Date.now() + (sec || 5) * 1000; showBreak((game && game.subject.id) || 'math'); },
       // Mở thẳng quà của một mốc (10, 20, …, 100) khi đang trong tháp.
       gift(floor) {
         game.locked = true;

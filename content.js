@@ -553,6 +553,11 @@
     starRainDone: 'Con hứng được thật nhiều sao!',
     rocket: 'Chuẩn bị bay! Ba, hai, một, phóng!',
     champion: 'Con đã lên tới tầng một trăm! Con là nhà vô địch!',
+    lookCarefully: 'Con nhìn thật kỹ rồi mới chọn nhé.',
+    tired: 'Cú mệt rồi. Mình nghỉ một chút nhé.',
+    breatheIn: 'Hít vào thật sâu.',
+    breatheOut: 'Thở ra thật chậm.',
+    breakDone: 'Hết giờ nghỉ rồi! Mình leo tiếp nào!',
   };
 
   const TENS = ['không', 'mười', 'hai mươi', 'ba mươi', 'bốn mươi', 'năm mươi', 'sáu mươi', 'bảy mươi', 'tám mươi', 'chín mươi', 'một trăm'];
