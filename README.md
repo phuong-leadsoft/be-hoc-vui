@@ -46,6 +46,10 @@ Phiên Developer Mode có thời hạn: thỉnh thoảng mở app Developer Mode
 - Phải bấm chọn rồi bấm **Chốt!** (hoặc bấm lại ô đó) mới tính.
 - Chưa đọc xong câu hỏi thì chưa bấm được. Mỗi lần sai mất 1 trái tim, khóa 3 giây và đáp án bị xáo lại.
 - Sai 2 lần: cú dạy lại, bé tự chọn đúng nhưng không lên tầng, câu đó quay lại sau 2 câu.
+- Sai liên tiếp thì chờ lâu dần: 3, 6, 10 giây (bố mẹ chỉnh mức tối đa); đúng ngay một câu là về lại 3 giây.
+- Bấm vội (chốt chỉ 1–2 giây sau khi được bấm) mà sai: câu sau cú đếm 3-2-1 "con nhìn thật kỹ" rồi mới cho chọn.
+- Hết tim 2 lần trong 10 phút: nghỉ giải lao 2 phút (cú ngủ, quả bóng hướng dẫn hít thở, đồng hồ cát).
+  Bố mẹ bật/tắt, chọn 1–3 phút, hoặc kết thúc giờ nghỉ ngay trong trang "Bố mẹ xem".
 - Hết 3 tim: quay về mốc an toàn gần nhất, tim đầy lại. Tới mốc mới cũng được nạp đầy tim.
 - Quyền trợ giúp mỗi đoạn 10 tầng: **Hỏi Cú** (giải thích, không có sao) và **Đổi câu**.
 - Khi tạo hồ sơ, bố mẹ chọn tuổi (3–7). Tuổi quyết định cấp khởi đầu: 3–4 tuổi cấp 1, 5 tuổi cấp 2,
