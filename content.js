@@ -592,6 +592,7 @@
     retryIntro: 'Câu này mình làm lại nè.',
     levelUp: 'Con giỏi quá! Câu hỏi sẽ khó hơn một chút nhé.',
     owlHelp: 'Cú giúp con nhé.',
+    owlRemoved: 'Cú bỏ bớt đáp án sai rồi. Con chọn trong những ô còn lại nhé.',
     swap: 'Mình đổi câu khác nhé.',
     milestone: 'Con đến mốc an toàn rồi! Mở quà nào!',
     top: 'Con lên tới đỉnh tháp rồi! Giỏi quá!',

@@ -1383,7 +1383,16 @@
 
   /* ================= Màn hình mở đầu, chọn bé, tạo hồ sơ ================= */
 
-  const ready = Store.init();
+  // Danh sách câu đã có giọng đọc (audio/list.json, do bước đưa lên GitHub Pages tạo ra). Không có danh sách
+  // (chạy bằng serve.py, bản cài tivi) thì coi như câu nào cũng có giọng.
+  let voiced = null;
+  const voicedReady = (window.fetch ? fetch('audio/list.json', { cache: 'no-store' }) : Promise.reject())
+    .then(r => (r.ok ? r.json() : null))
+    .then(list => { if (Array.isArray(list) && list.length) voiced = new Set(list); })
+    .catch(() => {});
+  const hasVoice = text => !voiced || voiced.has(C.hash(text));
+
+  const ready = Promise.all([Store.init(), voicedReady.then(() => {}, () => {})]).then(() => {});
 
   function showSplash() {
     screen('splash', `
@@ -1790,35 +1799,41 @@
     const last2 = g.recent.slice(-2);
     if (last2.length === 2 && last2[0] === last2[1] && skills.length > 1) skills = skills.filter(s => s !== last2[0]);
     const weights = skills.map(sk => Math.sqrt(poolSize(sk, levelFor(sk, g.floor + 1))));
-    let r = Math.random() * sum(weights);
-    let skill = skills[skills.length - 1];
-    for (let i = 0; i < skills.length; i++) {
-      r -= weights[i];
-      if (r <= 0) {
-        skill = skills[i];
-        break;
-      }
-    }
-    const level = levelFor(skill, g.floor + 1);
-    const hist = profile.qhist[skill] || (profile.qhist[skill] = []);
     let best = null;
-    let bestAge = Infinity;
-    for (let i = 0; i < 40; i++) {
-      const q = C.skills[skill].gen(level);
-      q.skill = skill;
-      q.key = q.say + '|' + q.answer;
-      const age = hist.indexOf(C.hash(q.key));   // -1 = chưa hỏi bao giờ; số nhỏ = hỏi từ lâu
-      if (age < bestAge) {
-        best = q;
-        bestAge = age;
-        if (age === -1) break;
+    let skill = null;
+    // Câu chưa có giọng đọc thì bỏ qua; kỹ năng nào chưa có câu nào có giọng thì thử kỹ năng khác.
+    for (let attempt = 0; attempt < 6 && !best; attempt++) {
+      let r = Math.random() * sum(weights);
+      skill = skills[skills.length - 1];
+      for (let i = 0; i < skills.length; i++) {
+        r -= weights[i];
+        if (r <= 0) {
+          skill = skills[i];
+          break;
+        }
+      }
+      const level = levelFor(skill, g.floor + 1);
+      const hist = profile.qhist[skill] || (profile.qhist[skill] = []);
+      let bestAge = Infinity;
+      for (let i = 0; i < 40; i++) {
+        const q = C.skills[skill].gen(level);
+        if (!hasVoice(q.say) || !hasVoice(q.explain)) continue;
+        q.skill = skill;
+        q.key = q.say + '|' + q.answer;
+        const age = hist.indexOf(C.hash(q.key));   // -1 = chưa hỏi bao giờ; số nhỏ = hỏi từ lâu
+        if (age < bestAge) {
+          best = q;
+          bestAge = age;
+          if (age === -1) break;
+        }
       }
     }
-    const q = best || C.skills[skill].gen(level);
+    const q = best || C.skills[skill].gen(levelFor(skill, g.floor + 1));
     if (!best) {
       q.skill = skill;
       q.key = q.say + '|' + q.answer;
     }
+    const hist = profile.qhist[skill] || (profile.qhist[skill] = []);
     const h = C.hash(q.key);
     const at = hist.indexOf(h);
     if (at >= 0) hist.splice(at, 1);
@@ -2291,22 +2306,41 @@
     g.teaching = false;
   }
 
-  async function useOwl() {
+  // Hỏi Cú: không chỉ đáp án, chỉ loại bớt đáp án sai (còn lại đáp án đúng và một vài đáp án sai) để bé tự chọn.
+  // Câu chỉ có 2 đáp án thì không loại được gì nên không tốn lượt.
+  function useOwl() {
     const g = game;
     if (!g || g.owl <= 0 || g.locked || g.teaching) {
       wiggle($('#h-owl'));
       return;
     }
-    const ep = epoch;
+    const right = String(g.q.answer);
+    const open = optionButtons().filter(b => !b.disabled);
+    const wrong = open.filter(b => b.dataset.val !== right);
+    const keep = g.q.mode === 'pad' ? 2 : 1;           // bàn phím số: chừa 2 số sai; ô hình: chừa 1 ô sai
+    if (open.length <= 2 || wrong.length <= keep) {
+      wiggle($('#h-owl'));
+      return;
+    }
     g.owl--;
     g.helped = true;
-    g.locked = true;
     saveClimb();
     renderStatus();
-    await teach(g.q, C.phrases.owlHelp);
-    if (ep !== epoch) return;
-    unlock();
+    clearSelection();
+    shuffle(wrong).slice(keep).forEach((b, i) => {
+      setTimeout(() => {
+        b.classList.add('owl-out');
+        b.disabled = true;
+        Sfx.pop();
+      }, i * 120);
+    });
+    mood('happy');
+    Voice.say(C.phrases.owlRemoved);
+    if (keyMode) {
+      setTimeout(() => { const f = optionButtons().find(b => !b.disabled); if (f) f.focus(); }, 400);
+    }
   }
+
 
   function useSwap() {
     const g = game;
