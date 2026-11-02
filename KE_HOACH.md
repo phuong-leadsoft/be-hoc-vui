@@ -1,6 +1,7 @@
 # Kế hoạch và việc còn dang dở
 
 Tài liệu bàn giao để người (hoặc AI) khác làm tiếp. Đọc `README.md` trước để biết cách chạy.
+Kế hoạch sản phẩm (bán hàng, thanh toán, chạy trên mọi tivi bằng web): `docs/KE_HOACH_SAN_PHAM.md`.
 Cập nhật lần cuối: 2026-11-01.
 
 ## 1. Bối cảnh
