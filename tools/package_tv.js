@@ -17,7 +17,7 @@ const OUT = path.join(ROOT, 'dist');
 const STAGE = path.join(OUT, 'tv');
 const APP_ID = 'vn.behocvui.tv';
 const VERSION = '1.0.0';
-const FILES = ['style.css', 'app.js', 'content.js', 'audio', 'img'];
+const FILES = ['style.css', 'polyfills.js', 'app.js', 'content.js', 'perfhud.js', 'audio', 'img'];
 const ICONS = { 'icon.png': 80, 'largeIcon.png': 130 };
 
 function lanIp() {
@@ -51,7 +51,7 @@ fs.mkdirSync(STAGE, { recursive: true });
 for (const f of FILES) fs.cpSync(path.join(ROOT, f), path.join(STAGE, f), { recursive: true });
 
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')
-  .replace('<script src="content.js">', `<script>window.BHV_SERVER = ${JSON.stringify(server.replace(/\/?$/, '/'))};</script>\n<script src="content.js">`);
+  .replace('<script src="polyfills.js">', `<script>window.BHV_SERVER = ${JSON.stringify(server.replace(/\/?$/, '/'))};</script>\n<script src="polyfills.js">`);
 fs.writeFileSync(path.join(STAGE, 'index.html'), html);
 
 fs.writeFileSync(path.join(STAGE, 'appinfo.json'), JSON.stringify({

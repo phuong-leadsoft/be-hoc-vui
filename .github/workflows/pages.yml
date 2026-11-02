@@ -29,14 +29,17 @@ jobs:
       - name: Gom các tệp của app
         run: |
           mkdir _site
-          cp -r index.html app.js content.js style.css audio img _site/
+          cp -r index.html polyfills.js app.js content.js style.css perfhud.js sw.js audio img _site/
           # Gắn mã phiên bản vào tên tệp để trình duyệt tivi không dùng bản cũ đã lưu.
           v=${GITHUB_SHA::8}
-          sed -i -E "s#(src|href)=\"(app\.js|content\.js|style\.css)\"#\1=\"\2?v=$v\"#g" _site/index.html
+          sed -i -E "s#(src|href)=\"(polyfills\.js|app\.js|content\.js|style\.css)\"#\1=\"\2?v=$v\"#g" _site/index.html
           grep -E 'app\.js\?v=|style\.css\?v=' _site/index.html
           # Danh sách các câu đã có giọng đọc: app bỏ qua câu hỏi chưa có giọng.
           (cd audio && ls *.m4a) | python3 -c "import sys, json; print(json.dumps([l.strip()[:-4] for l in sys.stdin if l.strip()]))" > _site/audio/list.json
           echo "Giọng đọc: $(python3 -c "import json; print(len(json.load(open('_site/audio/list.json'))))") câu"
+      # Kiểm tra app vẫn chạy được trên trình duyệt tivi đời cũ (cú pháp, CSS, dự phòng gap).
+      - name: Kiểm tra tương thích
+        run: node tools/compat.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

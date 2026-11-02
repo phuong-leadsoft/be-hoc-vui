@@ -42,7 +42,7 @@ button:disabled { opacity: .4; cursor: default; }
 @media (hover: hover) { .nav:not(:disabled):hover { transform: translateY(-.2rem) scale(1.03); } }
 
 /* ---------- Nền trời ---------- */
-.bg { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.bg { position: fixed; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; overflow: hidden; }
 .sun {
   position: absolute; top: -3rem; right: -3rem; width: 13rem; height: 13rem; border-radius: 50%;
   background: radial-gradient(circle, #fffbe0 0 30%, #fde047 31% 58%, rgba(253, 224, 71, .35) 59% 66%, rgba(253, 224, 71, 0) 67%);
@@ -200,7 +200,7 @@ button:disabled { opacity: .4; cursor: default; }
 .slot .emo { width: 3rem; height: 3rem; }
 .hint, .credits { margin: 0; font-size: 1.1rem; color: #64748b; text-align: center; }
 .screen-parents { overflow: auto; place-items: start center; }
-.parents { width: min(52rem, 100%); display: flex; flex-direction: column; gap: .8rem; user-select: text; -webkit-user-select: text; }
+.parents { width: 52rem; max-width: 100%; display: flex; flex-direction: column; gap: .8rem; user-select: text; -webkit-user-select: text; }
 .parents .screen-title { font-size: 2rem; text-align: left; }
 .meta { margin: 0; font-size: 1.1rem; line-height: 1.5; }
 .parents table { width: 100%; border-collapse: collapse; font-size: 1.05rem; }
@@ -258,7 +258,7 @@ button:disabled { opacity: .4; cursor: default; }
 .item .emo { width: 100%; height: 100%; }
 .item.gone { animation: pop-in .45s backwards, fly-away .9s ease-in forwards; animation-delay: calc(var(--i) * 80ms), 1.4s; }
 .item.gone::after {
-  content: '✕'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 3.4rem; font-weight: 800; color: var(--bad);
+  content: '✕'; position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; font-size: 3.4rem; font-weight: 800; color: var(--bad);
   opacity: 0; animation: fade-in .3s 2.2s forwards;
 }
 .item.nudge { animation: nudge .5s; }
@@ -362,7 +362,7 @@ button:disabled { opacity: .4; cursor: default; }
 .climber .ava-hat { top: -.32em; }
 
 /* Hộp quà / hỏi dừng */
-.overlay { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; background: rgba(15, 23, 42, .55); }
+.overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 20; display: none; place-items: center; background: rgba(15, 23, 42, .55); }
 .overlay.show { display: grid; }
 .reward-card {
   min-width: 24rem; padding: 1.6rem 2.4rem; border-radius: 2.4rem; background: #fff; box-shadow: var(--shadow);
@@ -377,7 +377,7 @@ button:disabled { opacity: .4; cursor: default; }
 .sticker > .emo { width: 8rem; height: 8rem; }
 .sticker > .ava { font-size: 7rem; margin-top: 2rem; }
 .sticker::before {
-  content: ''; position: absolute; inset: -2.5rem; z-index: -1; border-radius: 50%;
+  content: ''; position: absolute; top: -2.5rem; right: -2.5rem; bottom: -2.5rem; left: -2.5rem; z-index: -1; border-radius: 50%;
   background: repeating-conic-gradient(rgba(253, 224, 71, .7) 0 12deg, rgba(253, 224, 71, 0) 12deg 24deg); animation: spin 6s linear infinite;
 }
 .reward-card.open .gift { animation: gift-open .4s forwards; }
@@ -393,9 +393,9 @@ button:disabled { opacity: .4; cursor: default; }
 .end-stickers .emo { width: 4rem; height: 4rem; }
 
 /* Ăn mừng: pháo hoa (canvas), chớp sáng, sóng lan, chữ khen, sao bay */
-.fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 40; pointer-events: none; }
+.fx { position: fixed; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%; z-index: 40; pointer-events: none; }
 .flash {
-  position: fixed; inset: 0; z-index: 39; pointer-events: none;
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 39; pointer-events: none;
   background: radial-gradient(circle at var(--x) var(--y), rgba(255, 255, 255, .95), rgba(253, 224, 71, .55) 22%, rgba(253, 224, 71, 0) 60%);
   animation: flash .65s ease-out forwards;
 }
@@ -449,7 +449,7 @@ button:disabled { opacity: .4; cursor: default; }
 .egg-meter i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #facc15, #f97316); transition: width .15s; }
 
 /* Lễ hội nửa đường: sàn nhảy disco */
-.disco { position: fixed; inset: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem; background: #1e1b4b; }
+.disco { position: fixed; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem; background: #1e1b4b; }
 .disco-lights {
   position: absolute; left: 50%; top: 50%; width: 200vmax; height: 200vmax; margin: -100vmax 0 0 -100vmax; opacity: .55;
   background: repeating-conic-gradient(#f43f5e 0 10deg, transparent 10deg 30deg, #22d3ee 30deg 40deg, transparent 40deg 60deg, #facc15 60deg 70deg, transparent 70deg 90deg);
@@ -471,7 +471,7 @@ button:disabled { opacity: .4; cursor: default; }
 .box.other { opacity: .25; filter: grayscale(1); }
 
 /* Mưa sao */
-.rain { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
+.rain { position: fixed; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; pointer-events: none; }
 .drop { position: absolute; top: -4rem; animation: fall var(--dur) linear forwards; }
 .drop .emo { width: calc(3rem * var(--s)); height: calc(3rem * var(--s)); }
 .catch { width: 11rem; height: 11rem; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle, #fef9c3, #fde047); box-shadow: 0 .5rem 0 #ca8a04, var(--shadow); }
@@ -483,7 +483,7 @@ button:disabled { opacity: .4; cursor: default; }
 .rain-card.running .rain-meter i { animation: drain var(--ms) linear forwards; }
 
 /* Tên lửa */
-.launch { position: fixed; inset: 0; overflow: hidden; }
+.launch { position: fixed; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; }
 .countdown { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); font-size: 10rem; font-weight: 800; color: #fff; text-shadow: 0 .5rem 0 #f97316, 0 0 2rem #fde047; white-space: nowrap; }
 .countdown.tick { animation: count-pop .6s cubic-bezier(.34, 1.56, .64, 1); }
 .rocket-ride { position: absolute; left: 8%; bottom: 6%; width: 12rem; height: 12rem; animation: rumble .08s linear infinite; }
@@ -506,8 +506,8 @@ button:disabled { opacity: .4; cursor: default; }
 
 /* ---------- Nổ lớn ở các mốc (càng cao càng mạnh: --pw 1–10) ---------- */
 body.quake #app, body.quake .overlay { animation: quake .12s linear var(--quake-n, 3); }
-.whiteout { position: fixed; inset: 0; z-index: 39; pointer-events: none; background: #fff; animation: whiteout .55s ease-out forwards; }
-.slam { position: fixed; inset: 0; z-index: 38; pointer-events: none; display: grid; place-items: center; overflow: hidden; animation: slam-out 1.8s forwards; }
+.whiteout { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 39; pointer-events: none; background: #fff; animation: whiteout .55s ease-out forwards; }
+.slam { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 38; pointer-events: none; display: grid; place-items: center; overflow: hidden; animation: slam-out 1.8s forwards; }
 .slam-rays {
   position: absolute; left: 50%; top: 45%; width: 160vmax; height: 160vmax; margin: -80vmax 0 0 -80vmax;
   background: repeating-conic-gradient(rgba(253, 224, 71, .55) 0 8deg, rgba(253, 224, 71, 0) 8deg 20deg);
@@ -526,7 +526,7 @@ body.quake #app, body.quake .overlay { animation: quake .12s linear var(--quake-
 }
 .slam.gold .slam-sub { background: #ca8a04; }
 .slam.rainbow .slam-sub { background: linear-gradient(90deg, #f43f5e, #f59e0b, #22c55e, #3b82f6, #a855f7); }
-.darken { position: fixed; inset: 0; z-index: 37; pointer-events: none; background: #020617; animation: darken var(--ms, 3000ms) ease-in-out forwards; }
+.darken { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 37; pointer-events: none; background: #020617; animation: darken var(--ms, 3000ms) ease-in-out forwards; }
 .rainbow {
   position: fixed; left: 50%; bottom: -62vmin; z-index: 37; width: 124vmin; height: 124vmin; margin-left: -62vmin; border-radius: 50%; pointer-events: none;
   background: radial-gradient(circle, rgba(0, 0, 0, 0) 0 50%, rgba(168, 85, 247, .85) 50% 54%, rgba(59, 130, 246, .85) 54% 58%, rgba(34, 197, 94, .85) 58% 62%,
@@ -561,7 +561,7 @@ body.quake #app, body.quake .overlay { animation: quake .12s linear var(--quake-
 .zzz i:nth-child(3) { animation-delay: 2s; }
 .break-card.done .zzz { display: none; }
 .breath { position: relative; width: 7.5rem; height: 7.5rem; display: grid; place-items: center; }
-.breath-ball { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #bfdbfe, #60a5fa); animation: breathe 8s ease-in-out infinite; }
+.breath-ball { position: absolute; top: 0; right: 0; bottom: 0; left: 0; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #bfdbfe, #60a5fa); animation: breathe 8s ease-in-out infinite; }
 .breath-text { position: relative; font-size: 1.5rem; font-weight: 800; color: #1e3a8a; }
 .break-card.done .breath-ball { animation: none; background: radial-gradient(circle at 35% 35%, #bbf7d0, #22c55e); }
 .hourglass { display: flex; align-items: center; gap: .6rem; font-size: 2.6rem; font-weight: 800; }
@@ -601,7 +601,7 @@ body.lite .whiteout { animation-duration: .35s; }
 /* ---------- Khung cảnh mở được ở các mốc (đổi nền cả app) ---------- */
 body { transition: background .8s; }
 .sun, .hills path, .cloud { transition: background .8s, fill .8s, opacity .8s; }
-.bg::before { content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity .8s; }
+.bg::before { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; opacity: 0; transition: opacity .8s; }
 body[data-theme="sunset"] { background: linear-gradient(#7c3aed, #f472b6 45%, #fdba74 75%, #fde68a); }
 body[data-theme="sunset"] .sun { top: auto; bottom: 12vh; right: 20%; background: radial-gradient(circle, #fff7ed 0 25%, #fb923c 26% 58%, rgba(251, 146, 60, .35) 59% 66%, rgba(251, 146, 60, 0) 67%); }
 body[data-theme="sunset"] .cloud, body[data-theme="sunset"] .cloud::before, body[data-theme="sunset"] .cloud::after { background: #fecdd3; }
@@ -731,3 +731,63 @@ body[data-theme="sea"] .bg::before {
   .cloud, .sun, .title span, .tower-icon, .emo.big, .disco-lights, .slam-rays { animation: none !important; }
   body.quake #app, body.quake .overlay { animation: none !important; }
 }
+
+/* ---------- Dự phòng "gap" cho trình duyệt cũ (tạo bởi tools/compat.js --fix) ---------- */
+/* Trình duyệt không hỗ trợ gap trong flexbox: mỗi phần tử con cách nhau bằng margin một nửa khoảng gap. */
+.no-gap .chip > * { margin: calc(.4rem / 2); }
+.no-gap .row > * { margin: calc(1.4rem / 2); }
+.no-gap .splash > * { margin: calc(1.6rem / 2); }
+.no-gap .screen-profiles > *, .no-gap .screen-newprofile > * { margin: calc(2rem / 2); }
+.no-gap .profile-list > * { margin: calc(1.8rem / 2); }
+.no-gap .profile-card > * { margin: calc(.3rem / 2); }
+.no-gap .pmeta > * { margin: calc(.3rem / 2); }
+.no-gap .newprofile > * { margin: calc(1.3rem / 2); }
+.no-gap .avatar-grid > * { margin: calc(1rem / 2); }
+.no-gap .age-row > * { margin: calc(.7rem / 2); }
+.no-gap .age-who > * { margin: calc(.8rem / 2); }
+.no-gap .screen-home > * { margin: calc(1rem / 2); }
+.no-gap .who > * { margin: calc(.6rem / 2); }
+.no-gap .chips > * { margin: calc(.8rem / 2); }
+.no-gap .mission > * { margin: calc(1rem / 2); }
+.no-gap .towers > * { margin: calc(.9rem / 2); }
+.no-gap .tower-card > * { margin: calc(.4rem / 2); }
+.no-gap .segs > * { margin: calc(.2rem / 2); }
+.no-gap .tower-best > * { margin: calc(.3rem / 2); }
+.no-gap .home-foot > * { margin: calc(1rem / 2); }
+.no-gap .album > * { margin: calc(.7rem / 2); }
+.no-gap .shelf > * { margin: calc(.3rem / 2); }
+.no-gap .sticker-grid > * { margin: calc(.5rem / 2); }
+.no-gap .parents > * { margin: calc(.8rem / 2); }
+.no-gap .topbar > * { margin: calc(1.2rem / 2); }
+.no-gap .hearts > * { margin: calc(.3rem / 2); }
+.no-gap .helpers > * { margin: calc(.8rem / 2); }
+.no-gap .helper > * { margin: calc(.4rem / 2); }
+.no-gap .score > * { margin: calc(.4rem / 2); }
+.no-gap .stage > * { margin: calc(.6rem / 2); }
+.no-gap .scene > * { margin: calc(1rem / 2); }
+.no-gap .group > * { margin: calc(.4rem / 2); }
+.no-gap .group.many > * { margin: calc(.3rem / 2); }
+.no-gap .seq > * { margin: calc(.7rem / 2); }
+.no-gap .ask > * { margin: calc(.6rem / 2); }
+.no-gap .options > * { margin: calc(.7rem / 2); }
+.no-gap .options.choice > * { margin: calc(1.2rem / 2); }
+.no-gap .opt-group .group > * { margin: calc(.25rem / 2); }
+.no-gap .pad-row > * { margin: calc(.7rem / 2); }
+.no-gap .cooldown > * { margin: calc(.5rem / 2); }
+.no-gap .ladder > * { margin: calc(.4rem / 2); }
+.no-gap .ladder-title > * { margin: calc(.3rem / 2); }
+.no-gap .progress > * { margin: calc(.4rem / 2); }
+.no-gap .floors > * { margin: calc(.25rem / 2); }
+.no-gap .reward-card > * { margin: calc(.9rem / 2); }
+.no-gap .end-card > * { margin: calc(1rem / 2); }
+.no-gap .end-stats > * { margin: calc(1rem / 2); }
+.no-gap .end-stickers > * { margin: calc(.6rem / 2); }
+.no-gap .combo > * { margin: calc(.2rem / 2); }
+.no-gap .disco > * { margin: calc(1.5rem / 2); }
+.no-gap .dancers > * { margin: calc(3rem / 2); }
+.no-gap .boxes > * { margin: calc(2rem / 2); }
+.no-gap .break-card > * { margin: calc(.6rem / 2); }
+.no-gap .hourglass > * { margin: calc(.6rem / 2); }
+.no-gap .settings > * { margin: calc(.4rem / 2); }
+.no-gap .set-row > * { margin: calc(.5rem / 2); }
+/* ---------- Hết dự phòng "gap" ---------- */

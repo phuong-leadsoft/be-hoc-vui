@@ -225,51 +225,109 @@
     return epoch;
   }
 
-  const Voice = {
-    audio: null,
-    finish: null,
+  // Nhật ký âm thanh (xem trong bảng ?perf): giúp tìm câu bị cắt, lỗi phát trên tivi.
+  const audioLog = [];
+  function logAudio(ev, text) {
+    audioLog.push({ t: Math.round(performance.now()), ev, text: String(text || '').slice(0, 40) });
+    if (audioLog.length > 40) audioLog.shift();
+  }
 
-    // Đọc một câu từ file audio/<hash>.m4a; trả về Promise xong khi đọc hết (hoặc bị dừng).
+  // Giọng đọc. Chỉ dùng MỘT phần tử <audio> cho cả app: tivi (LG webOS, Samsung…) có ít bộ giải mã âm thanh,
+  // tạo nhiều <audio> sẽ làm câu sau không phát được hoặc bị cắt đuôi.
+  const VOICE_TAIL_MS = 250;   // chờ thêm sau khi đọc xong rồi mới phát tiếp, để tivi phát hết phần còn trong bộ đệm
+  const Voice = {
+    el: null,
+    finish: null,
+    fetched: new Set(),
+
+    url: text => 'audio/' + C.hash(text) + '.m4a',
+
+    ensure() {
+      if (!this.el) {
+        this.el = new Audio();
+        this.el.preload = 'auto';
+      }
+      return this.el;
+    },
+
+    // Đọc một câu; trả về Promise xong khi đọc hết (hoặc bị dừng, hoặc lỗi).
     say(text) {
       this.stop();
       showBubble(text);
       Music.duck(true);
+      const el = this.ensure();
       return new Promise(resolve => {
         let done = false;
         let fellBack = false;
+        let tail = null;
+        // Hẹn giờ an toàn khi tivi không báo "ended": trước khi biết thời lượng thì rộng rãi, biết rồi thì
+        // bằng thời lượng thật cộng 2,5 giây (không đoán theo số chữ nữa, nên không cắt ngang câu đang đọc).
+        let timer = setTimeout(() => { logAudio('timeout', text); end(); }, 10000 + text.length * 100);
+        const detach = () => { el.onended = el.onerror = el.onloadedmetadata = null; };
         const end = () => {
           if (done) return;
           done = true;
           clearTimeout(timer);
-          if (this.finish === end) this.finish = null;
+          clearTimeout(tail);
+          if (this.finish === end) {
+            this.finish = null;
+            detach();
+          }
           Music.duck(false);
           resolve();
         };
-        const fallback = () => {
+        const fallback = why => {
           if (done || fellBack) return;
           fellBack = true;
+          logAudio('fallback ' + why, text);
+          clearTimeout(timer);
           speak(text, end);
         };
-        const timer = setTimeout(end, 3000 + text.length * 120);
+        el.onloadedmetadata = () => {
+          if (isFinite(el.duration) && el.duration > 0) {
+            clearTimeout(timer);
+            timer = setTimeout(() => { logAudio('timeout', text); end(); }, el.duration * 1000 + 2500);
+          }
+        };
+        el.onended = () => {
+          logAudio('ended', text);
+          tail = setTimeout(end, VOICE_TAIL_MS);
+        };
+        el.onerror = () => fallback('error');
         this.finish = end;
-        const a = new Audio('audio/' + C.hash(text) + '.m4a');
-        this.audio = a;
-        a.onended = end;
-        a.onerror = fallback;
-        const p = a.play();
-        if (p && p.catch) p.catch(fallback);
+        el.src = this.url(text);
+        logAudio('play', text);
+        const p = el.play();
+        if (p && p.catch) {
+          p.catch(e => {
+            // AbortError: câu này bị câu khác thay ngang (đúng ý), không phải lỗi.
+            if (e && e.name === 'AbortError') return;
+            fallback(e && e.name);
+          });
+        }
       });
     },
 
     stop() {
-      if (this.audio) {
-        const a = this.audio;
-        a.onended = a.onerror = null;
-        a.pause();
-        this.audio = null;
+      const el = this.el;
+      if (el && this.finish) {
+        el.onended = el.onerror = el.onloadedmetadata = null;
+        if (!el.paused) el.pause();
       }
       if (window.speechSynthesis) window.speechSynthesis.cancel();
       if (this.finish) this.finish();
+    },
+
+    // Tải sẵn các câu sắp nói (vào bộ nhớ đệm của trình duyệt), để lúc đọc không phải chờ mạng.
+    prefetch(texts) {
+      if (!window.fetch) return;
+      texts.forEach(t => {
+        if (!t) return;
+        const u = this.url(t);
+        if (this.fetched.has(u)) return;
+        this.fetched.add(u);
+        fetch(u).catch(() => this.fetched.delete(u));
+      });
     },
   };
 
@@ -291,8 +349,74 @@
   }
 
   // Hiệu ứng âm thanh tổng hợp bằng Web Audio, không cần file.
+  // Hiệu ứng âm thanh. Lúc bấm "Bắt đầu", mỗi tiếng được tạo sẵn một lần thành đoạn âm thanh (OfflineAudioContext);
+  // sau đó mỗi lần phát chỉ cần 1 nguồn âm thay vì hàng chục nút tổng hợp, nhẹ cho tivi. Chưa tạo xong thì tổng hợp trực tiếp.
   const Sfx = {
     ctx: null,
+    baked: {},
+    baking: false,
+
+    // Phát đoạn đã tạo sẵn; trả về false nếu chưa có (để hàm gọi tự tổng hợp).
+    playBaked(name, delay) {
+      if (this.baking || !this.ctx) return false;
+      const list = this.baked[name];
+      if (!list) return false;
+      const src = this.ctx.createBufferSource();
+      src.buffer = list[Math.floor(Math.random() * list.length)];
+      src.connect(this.ctx.destination);
+      src.start(this.ctx.currentTime + (delay || 0));
+      return true;
+    },
+
+    // Tạo sẵn một tiếng: chạy hàm tổng hợp trên OfflineAudioContext rồi lưu kết quả.
+    bake(name, dur, fn) {
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!OAC || !this.ctx) return Promise.resolve();
+      const rate = 32000;
+      const oc = new OAC(1, Math.ceil(rate * dur), rate);
+      const live = this.ctx;
+      this.baking = true;
+      this.ctx = oc;
+      try {
+        fn();
+      } finally {
+        this.ctx = live;
+        this.baking = false;
+      }
+      return new Promise(res => {
+        const done = buf => {
+          (this.baked[name] = this.baked[name] || []).push(buf);
+          res();
+        };
+        const r = oc.startRendering();
+        if (r && r.then) r.then(done, () => res());
+        else oc.oncomplete = e => done(e.renderedBuffer);
+      });
+    },
+
+    // Tạo sẵn mọi tiếng, lần lượt từng cái để không làm khựng giao diện.
+    bakeAll() {
+      if (this.bakeStarted || !this.ctx) return;
+      this.bakeStarted = true;
+      const jobs = [
+        ['correct1', 0.5, () => this.correct(1)], ['correct2', 1.0, () => this.correct(2)],
+        ['wrong', 0.55, () => this.wrong()], ['heart', 0.6, () => this.heart()], ['tick', 0.12, () => this.tick()],
+        ['pop', 0.18, () => this.pop()], ['climb', 0.45, () => this.climb()], ['drum', 1.1, () => this.drum(1)],
+        ['chest', 0.7, () => this.chest()],
+        ['bang', 0.9, () => this.bang()], ['bang', 0.9, () => this.bang()], ['bang', 0.9, () => this.bang()],
+        ['fanfare', 2.8, () => this.fanfare()], ['boom', 1.6, () => this.boom()],
+        ['whistle', 0.8, () => this.whistle()], ['whistle', 0.8, () => this.whistle()],
+        ['zing', 0.5, () => this.zing()], ['zing', 0.5, () => this.zing()],
+        ['thunder', 2.5, () => this.thunder()], ['harp', 1.5, () => this.harp()], ['hiss', 3.05, () => this.hiss(3)],
+        ['whirl', 1.4, () => this.whirl()], ['whoosh', 2.3, () => this.whoosh()], ['crackle', 0.8, () => this.crackle(0, 14)],
+        ['dance', 5.8, () => this.dance(5.6)],
+      ];
+      let chain = Promise.resolve();
+      jobs.forEach(([name, dur, fn]) => {
+        chain = chain.then(() => this.bake(name, dur, fn)).then(() => wait(0));
+      });
+      chain.then(() => Music.bake()).then(() => logAudio('sfx ready', Object.keys(this.baked).length + ' tiếng'));
+    },
     init() {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!this.ctx && AC) this.ctx = new AC();
@@ -388,7 +512,7 @@
     },
     // Nhạc thưởng (~2,5 giây): trống dồn, chũm chọe, kèn đồng đi lên, hợp âm Đô trưởng ngân dài, lấp lánh.
     fanfare() {
-      if (!this.ctx) return;
+      if (!this.ctx || this.playBaked('fanfare')) return;
       for (let i = 0; i < 16; i++) {
         const t = 0.75 * (1 - Math.pow(1 - i / 16, 1.5));
         this.noiseHit(t, 0.07, 1900, 'bandpass', 0.1 + i * 0.012);
@@ -404,7 +528,7 @@
     },
     // Nhạc nhảy cho lễ hội tầng 50 (128 BPM): trống, vỗ tay, bass nảy, hợp âm và giai điệu.
     dance(sec) {
-      if (!this.ctx) return;
+      if (!this.ctx || this.playBaked('dance')) return;
       const e = 60 / 128 / 2;
       const roots = [36, 33, 41, 43];
       const chords = [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]];
@@ -421,7 +545,7 @@
     },
     // Tiếng nổ lớn ở mốc: tiếng trầm rung sàn, tiếng ầm và tiếng lách tách.
     boom() {
-      if (!this.ctx) return;
+      if (!this.ctx || this.playBaked('boom')) return;
       this.tone(70, 0, 0.9, 'sine', 0.7, 28);
       this.tone(140, 0, 0.3, 'triangle', 0.3, 50);
       this.noiseHit(0, 1.4, 500, 'lowpass', 0.6);
@@ -430,39 +554,42 @@
     },
     // Pháo hoa bay lên: tiếng rít cao dần.
     whistle() {
-      if (!this.ctx) return;
+      if (!this.ctx || this.playBaked('whistle')) return;
       const f = 500 + Math.random() * 300;
       this.tone(f, 0, 0.75, 'sine', 0.035, f * 3);
       this.noiseHit(0, 0.7, 4000, 'highpass', 0.04);
     },
     // Sấm: tiếng nứt chói rồi tiếng ầm ì kéo dài.
     thunder() {
-      if (!this.ctx) return;
+      if (!this.ctx || this.playBaked('thunder')) return;
       this.noiseHit(0, 0.18, 3500, 'highpass', 0.45);
       this.noiseHit(0.04, 2.4, 200, 'lowpass', 0.9);
       this.tone(55, 0.04, 1.8, 'sine', 0.5, 30);
     },
     // Đàn hạc lướt lên (cầu vồng).
     harp() {
+      if (this.playBaked('harp')) return;
       for (let i = 0; i < 16; i++) this.tone(mf(60 + [0, 2, 4, 7, 9][i % 5] + 12 * Math.floor(i / 5)), i * 0.05, 0.7, 'triangle', 0.07);
     },
     // Tiếng xì kéo dài (núi lửa, đài phun).
-    hiss(sec) { this.noiseHit(0, sec, 5000, 'highpass', 0.12); },
+    hiss(sec) { if (!this.playBaked('hiss')) this.noiseHit(0, sec, 5000, 'highpass', 0.12); },
     // Tiếng vút của sao băng.
-    zing() { const f = 1200 + Math.random() * 600; this.tone(f, 0, 0.45, 'sine', 0.04, f * 2.2); },
+    zing() { if (this.playBaked('zing')) return; const f = 1200 + Math.random() * 600; this.tone(f, 0, 0.45, 'sine', 0.04, f * 2.2); },
     // Tiếng xoáy đi lên (dải ngân hà).
-    whirl() { for (let i = 0; i < 18; i++) this.tone(300 + i * 70, i * 0.07, 0.15, 'triangle', 0.05); },
+    whirl() { if (this.playBaked('whirl')) return; for (let i = 0; i < 18; i++) this.tone(300 + i * 70, i * 0.07, 0.15, 'triangle', 0.05); },
     crackle(start, n) {
+      if (this.playBaked('crackle', start)) return;
       for (let i = 0; i < n; i++) this.tone(1800 + Math.random() * 4000, start + Math.random() * 0.7, 0.03, 'square', 0.025);
     },
     // Tiếng tên lửa phóng: tiếng xì mạnh dần rồi bay xa.
     whoosh() {
       const c = this.ctx;
-      if (!c) return;
+      if (!c || this.playBaked('whoosh')) return;
       this.noiseHit(0, 2.2, 900, 'lowpass', 0.35);
       this.tone(120, 0, 2, 'sawtooth', 0.05, 900);
     },
     correct(power) {
+      if (this.playBaked(power >= 2 ? 'correct2' : 'correct1')) return;
       [523, 659, 784, 1047].forEach((f, i) => this.tone(f, i * 0.08, 0.28, 'triangle', 0.18));
       if (power < 2) return;
       // Kèn chiến thắng: thêm hợp âm sáng sau chuỗi nốt đi lên.
@@ -472,7 +599,7 @@
     // Tiếng pháo nổ: tiếng ồn trắng tắt dần.
     bang() {
       const c = this.ctx;
-      if (!c) return;
+      if (!c || this.playBaked('bang')) return;
       if (!this.noise) {
         const len = Math.floor(c.sampleRate * 0.6);
         this.noise = c.createBuffer(1, len, c.sampleRate);
@@ -492,15 +619,16 @@
       src.start();
       for (let i = 0; i < 6; i++) this.tone(2500 + Math.random() * 3000, 0.15 + Math.random() * 0.5, 0.04, 'square', 0.02);
     },
-    wrong() { this.tone(220, 0, 0.18, 'square', 0.05); this.tone(155, 0.16, 0.32, 'square', 0.05); },
-    heart() { this.tone(440, 0, 0.5, 'sawtooth', 0.05, 180); },
-    tick() { this.tone(880, 0, 0.06, 'sine', 0.08); },
-    pop() { this.tone(700, 0, 0.08, 'sine', 0.12); this.tone(1200, 0.05, 0.08, 'sine', 0.08); },
-    climb() { this.tone(392, 0, 0.35, 'triangle', 0.14, 784); },
+    wrong() { if (this.playBaked('wrong')) return; this.tone(220, 0, 0.18, 'square', 0.05); this.tone(155, 0.16, 0.32, 'square', 0.05); },
+    heart() { if (this.playBaked('heart')) return; this.tone(440, 0, 0.5, 'sawtooth', 0.05, 180); },
+    tick() { if (this.playBaked('tick')) return; this.tone(880, 0, 0.06, 'sine', 0.08); },
+    pop() { if (this.playBaked('pop')) return; this.tone(700, 0, 0.08, 'sine', 0.12); this.tone(1200, 0.05, 0.08, 'sine', 0.08); },
+    climb() { if (this.playBaked('climb')) return; this.tone(392, 0, 0.35, 'triangle', 0.14, 784); },
     drum(sec) {
+      if (this.playBaked('drum')) return;
       for (let t = 0; t < sec; t += 0.07) this.tone(90 + t * 70, t, 0.06, 'triangle', 0.08 + t * 0.08);
     },
-    chest() { [784, 988, 1175, 1568, 1976].forEach((f, i) => this.tone(f, i * 0.07, 0.3, 'sine', 0.12)); },
+    chest() { if (this.playBaked('chest')) return; [784, 988, 1175, 1568, 1976].forEach((f, i) => this.tone(f, i * 0.07, 0.3, 'sine', 0.12)); },
   };
 
   // Nhạc nền khi leo tháp: vòng lặp 116 BPM, hợp âm C–Am–F–G, giai điệu ngũ cung, âm lượng nhỏ.
@@ -519,6 +647,53 @@
       [79, 0, 81, 79, 76, 0, 72, 74], [76, 0, 72, 69, 72, 0, 74, 76], [77, 0, 76, 74, 72, 0, 69, 72], [74, 76, 79, 81, 79, 0, 0, 0],
     ],
 
+    // Tạo sẵn cả vòng nhạc (64 móc đơn, ~16,5 giây) thành một đoạn âm thanh lặp lại: không cần bộ hẹn giờ
+    // chạy liên tục trên tivi. Chưa tạo xong thì phát kiểu cũ (lên lịch từng nốt).
+    bake() {
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!OAC || !Sfx.ctx || this.loop) return Promise.resolve();
+      const e = 60 / 116 / 2;
+      const rate = 32000;
+      const oc = new OAC(1, Math.ceil(rate * e * 64), rate);
+      const live = Sfx.ctx;
+      const bus = this.bus;
+      Sfx.baking = true;
+      Sfx.ctx = oc;
+      this.bus = oc.destination;
+      try {
+        for (let s = 0; s < 64; s++) this.play(s, s * e);
+      } finally {
+        Sfx.ctx = live;
+        Sfx.baking = false;
+        this.bus = bus;
+      }
+      return new Promise(res => {
+        const done = buf => {
+          this.loop = buf;
+          // Đang phát kiểu cũ thì chuyển sang vòng lặp ở đầu nhịp kế tiếp.
+          if (this.playing && this.timer) {
+            this.stopNotes();
+            this.startLoop();
+          }
+          res();
+        };
+        const r = oc.startRendering();
+        if (r && r.then) r.then(done, () => res());
+        else oc.oncomplete = ev => done(ev.renderedBuffer);
+      });
+    },
+    startLoop() {
+      const c = Sfx.ctx;
+      this.src = c.createBufferSource();
+      this.src.buffer = this.loop;
+      this.src.loop = true;
+      this.src.connect(this.bus);
+      this.src.start(c.currentTime + 0.05);
+    },
+    stopNotes() {
+      clearInterval(this.timer);
+      this.timer = null;
+    },
     start() {
       if (!this.on || this.playing || !Sfx.ctx) return;
       const c = Sfx.ctx;
@@ -529,14 +704,23 @@
       }
       this.playing = true;
       this.paused = false;
-      this.step = 0;
-      this.next = c.currentTime + 0.15;
-      this.timer = setInterval(() => this.schedule(), 100);
+      if (this.loop) {
+        this.startLoop();
+      } else {
+        this.step = 0;
+        this.next = c.currentTime + 0.15;
+        this.timer = setInterval(() => this.schedule(), 100);
+      }
       this.fade();
     },
     stop() {
-      clearInterval(this.timer);
-      this.timer = null;
+      this.stopNotes();
+      if (this.src) {
+        const src = this.src;
+        this.src = null;
+        // Tắt sau khi âm lượng đã giảm về 0.
+        setTimeout(() => { try { src.stop(); } catch (e) { /* đã dừng */ } }, 400);
+      }
       this.playing = false;
       this.paused = false;
       this.fade();
@@ -1019,6 +1203,9 @@
       requestAnimationFrame(t => this.tick(t));
     },
 
+    // Mỗi khung hình: cập nhật rồi vẽ. Không tạo mảng/đối tượng mới mỗi khung (tránh trình duyệt dừng lại dọn bộ nhớ,
+    // gây khựng trên tivi): mảng mảnh được nén tại chỗ, mảnh vệt đuôi lấy lại từ kho (pool),
+    // tia và chấm cùng màu + cùng độ mờ được gom vẽ một lần.
     tick(t) {
       const dt = Math.min(0.05, (t - this.last) / 1000);
       this.last = t;
@@ -1039,25 +1226,51 @@
       } else if (this.parts.length > 200 && this.ema < 0.019 && this.quality < 1) {
         this.quality = Math.min(1, this.quality + 0.002);   // vẽ mượt trở lại thì tăng dần
       }
-      this.emitters = this.emitters.filter(e => {
+
+      // Nguồn phun liên tục (nén tại chỗ).
+      const em = this.emitters;
+      let ne = 0;
+      for (let i = 0; i < em.length; i++) {
+        const e = em[i];
         e.t += dt;
         e.fn(dt, e.t);
-        return e.t < e.dur;
-      });
-      const dead = [];
-      this.parts = this.parts.filter(p => {
-        if ((p.life -= dt) > 0) return true;
-        if (p.onDie) dead.push(p);
-        return false;
-      });
-      dead.forEach(p => p.onDie(p));
-      const trail = [];
+        if (e.t < e.dur) em[ne++] = e;
+      }
+      em.length = ne;
+
+      // Lượt 1: tuổi thọ, nén mảng tại chỗ; mảnh hết hạn trả về kho hoặc gọi onDie.
+      const arr = this.parts;
+      const dead = this.deadBuf || (this.deadBuf = []);
+      const pool = this.pool || (this.pool = []);
+      let n = 0;
+      for (let i = 0; i < arr.length; i++) {
+        const p = arr[i];
+        if ((p.life -= dt) > 0) arr[n++] = p;
+        else if (p.onDie) dead.push(p);
+        else if (p.pooled && pool.length < 600) pool.push(p);
+      }
+      arr.length = n;
+      for (let i = 0; i < dead.length; i++) dead[i].onDie(dead[i]);
+      dead.length = 0;
+
+      // Lượt 2: chuyển động, vệt đuôi (lấy từ kho), xếp mảnh vào nhóm để vẽ.
       const u = rem();
-      for (const p of this.parts) {
-        if (p.trail && (!this.lite || Math.random() < 0.4)) {
-          trail.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * u, vy: Math.random() * 2 * u, g: 4 * u, drag: 0.9, size: (p.trailSize || 0.22) * u,
-            rot: 0, vr: 0, color: Array.isArray(p.trail) ? pick(p.trail) : Math.random() < 0.5 ? '#fde68a' : '#fb923c', shape: 'dot',
-            life: 0.3 + Math.random() * 0.25, fade: 0.3 });
+      const groups = this.groups || (this.groups = []);
+      for (let i = 0; i < groups.length; i++) if (groups[i]) groups[i].length = 0;
+      const colorIdx = this.colorIdx || (this.colorIdx = {});
+      const colors = this.colors || (this.colors = []);
+      const solo = this.solo || (this.solo = []);
+      solo.length = 0;
+      const count = arr.length;   // vệt đuôi thêm vào cuối mảng, khung sau mới vẽ
+      for (let i = 0; i < count; i++) {
+        const p = arr[i];
+        if (p.trail && (!this.lite || Math.random() < 0.4) && arr.length < (this.lite ? 280 : 900)) {
+          const q = pool.pop() || { pooled: true };
+          q.x = p.x; q.y = p.y; q.vx = (Math.random() - 0.5) * u; q.vy = Math.random() * 2 * u; q.g = 4 * u; q.drag = 0.9;
+          q.size = (p.trailSize || 0.22) * u; q.rot = 0; q.vr = 0; q.shape = 'dot'; q.life = 0.3 + Math.random() * 0.25; q.fade = 0.3;
+          q.color = Array.isArray(p.trail) ? p.trail[Math.floor(Math.random() * p.trail.length)] : Math.random() < 0.5 ? '#fde68a' : '#fb923c';
+          q.trail = q.twinkle = q.wobble = false; q.onDie = null; q.pooled = true;
+          arr.push(q);
         }
         if (p.wobble) p.vx = Math.sin(p.life * 3 + p.ph) * 2 * u;
         const k = Math.pow(p.drag, dt * 60);
@@ -1066,10 +1279,63 @@
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.rot += p.vr * dt;
+        if (p.shape === 'ring' || p.shape === 'glow') p.r += p.grow * dt;
+        if (p.shape === 'spark' || p.shape === 'dot') {
+          const a = Math.min(1, p.life / p.fade) * (p.twinkle ? 0.35 + Math.random() * 0.65 : 1);
+          let ci = colorIdx[p.color];
+          if (ci === undefined) {
+            ci = colorIdx[p.color] = colors.length;
+            colors.push(p.color);
+          }
+          // Nhóm = màu × độ mờ (4 mức) × (tia: độ dày 6 mức | chấm).
+          const al = Math.max(1, Math.ceil(a * 4));
+          const sl = p.shape === 'dot' ? 6 : Math.min(5, Math.round((p.size / u) * 12));
+          const key = (ci * 5 + al) * 7 + sl;
+          (groups[key] || (groups[key] = [])).push(p);
+        } else {
+          solo.push(p);
+        }
+      }
+
+      // Vẽ các nhóm tia/chấm: mỗi nhóm một lần vẽ.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.lineCap = 'round';
+      for (let key = 0; key < groups.length; key++) {
+        const g = groups[key];
+        if (!g || !g.length) continue;
+        const sl = key % 7;
+        const al = Math.floor(key / 7) % 5;
+        const color = colors[Math.floor(key / 35)];
+        ctx.globalAlpha = al / 4;
+        ctx.beginPath();
+        if (sl === 6) {
+          ctx.fillStyle = color;
+          for (let i = 0; i < g.length; i++) {
+            const p = g[i];
+            const r = p.size * 0.35;
+            ctx.moveTo(p.x + r, p.y);
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          }
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = Math.max(0.5, ((sl + 0.5) / 12) * u);
+          for (let i = 0; i < g.length; i++) {
+            const p = g[i];
+            ctx.moveTo(p.x - p.vx * 0.05, p.y - p.vy * 0.05);
+            ctx.lineTo(p.x, p.y);
+          }
+          ctx.stroke();
+        }
+      }
+
+      // Các mảnh còn lại (pháo giấy xoay, sao, tiền vàng, bóng bay, tia sét, vòng sóng, quầng sáng): vẽ từng cái.
+      for (let i = 0; i < solo.length; i++) {
+        const p = solo[i];
         ctx.globalAlpha = Math.min(1, p.life / p.fade) * (p.twinkle ? 0.35 + Math.random() * 0.65 : 1);
-        ctx.fillStyle = ctx.strokeStyle = p.color;
+        if (ctx.fillStyle !== p.color) ctx.fillStyle = p.color;
+        ctx.strokeStyle = p.color;
         if (p.shape === 'ring') {
-          p.r += p.grow * dt;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           ctx.lineWidth = Math.max(0.5, p.size * (p.life / p.max));
           ctx.beginPath();
@@ -1106,17 +1372,19 @@
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           ctx.lineJoin = 'round';
           ctx.globalAlpha = Math.random() < 0.25 ? 0.2 : Math.min(1, p.life / p.fade);
-          [[p.size * 4, 'rgba(147, 197, 253, .45)'], [p.size, '#fff']].forEach(([w, c]) => {
-            ctx.lineWidth = w;
-            ctx.strokeStyle = c;
+          for (let k = 0; k < 2; k++) {
+            ctx.lineWidth = k ? p.size : p.size * 4;
+            ctx.strokeStyle = k ? '#fff' : 'rgba(147, 197, 253, .45)';
             ctx.beginPath();
-            p.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+            for (let j = 0; j < p.pts.length; j++) {
+              if (j) ctx.lineTo(p.pts[j][0], p.pts[j][1]);
+              else ctx.moveTo(p.pts[j][0], p.pts[j][1]);
+            }
             ctx.stroke();
-          });
+          }
           continue;
         }
         if (p.shape === 'glow') {
-          p.r += p.grow * dt;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           ctx.globalAlpha = 0.55 * (p.life / p.max);
           ctx.beginPath();
@@ -1145,41 +1413,26 @@
           ctx.fill();
           continue;
         }
-        if (p.shape === 'spark') {
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          ctx.lineWidth = p.size;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(p.x - p.vx * 0.05, p.y - p.vy * 0.05);
-          ctx.lineTo(p.x, p.y);
-          ctx.stroke();
-          continue;
-        }
-        // Xoay và lật như mảnh giấy đang bay.
+        // Pháo giấy: xoay và lật như mảnh giấy đang bay.
         const c = Math.cos(p.rot);
-        const s = Math.sin(p.rot);
+        const sn = Math.sin(p.rot);
         const flip = Math.cos(p.rot * 1.7);
-        ctx.setTransform(dpr * c, dpr * s, -dpr * s * flip, dpr * c * flip, dpr * p.x, dpr * p.y);
+        ctx.setTransform(dpr * c, dpr * sn, -dpr * sn * flip, dpr * c * flip, dpr * p.x, dpr * p.y);
         if (p.shape === 'rect') {
           ctx.fillRect(-p.size / 2, -p.size * 0.3, p.size, p.size * 0.6);
-        } else if (p.shape === 'dot') {
-          ctx.beginPath();
-          ctx.arc(0, 0, p.size * 0.35, 0, Math.PI * 2);
-          ctx.fill();
         } else {
           ctx.beginPath();
-          for (let i = 0; i < 10; i++) {
-            const rr = i % 2 ? p.size * 0.28 : p.size * 0.7;
-            const aa = (i * Math.PI) / 5 - Math.PI / 2;
+          for (let k = 0; k < 10; k++) {
+            const rr = k % 2 ? p.size * 0.28 : p.size * 0.7;
+            const aa = (k * Math.PI) / 5 - Math.PI / 2;
             ctx.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr);
           }
           ctx.fill();
         }
       }
       ctx.globalAlpha = 1;
-      trail.forEach(p => this.add(p));
       if (this.parts.length || this.emitters.length) {
-        requestAnimationFrame(tt => this.tick(tt));
+        requestAnimationFrame(this.loopFn || (this.loopFn = tt => this.tick(tt)));
       } else {
         this.running = false;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1415,6 +1668,9 @@
       Sfx.init();
       Sfx.warm();
       Fx.ensure();
+      Voice.ensure();
+      Voice.prefetch(C.phrases.praise.concat([C.phrases.whoPlays, C.phrases.confirm, C.phrases.later, C.phrases.retryIntro]));
+      setTimeout(() => Sfx.bakeAll(), 300);
       showProfiles(true);
     };
   }
@@ -1938,6 +2194,10 @@
     renderStatus();
     renderScene(q);
     $('.ask-text').textContent = q.show || q.say;
+    // Tải sẵn những câu cú có thể nói ở câu hỏi này (giải thích, khen, nhắc khi sai, đếm cùng).
+    Voice.prefetch([q.explain, C.phrases.praiseAfter, C.phrases.praiseTaught, C.phrases.teach, C.phrases.teachDone,
+      C.phrases.lastHeart, q.countAlong ? C.phrases.countHint : null].concat(C.phrases.wrong, C.phrases.praise,
+      q.countAlong && q.scene && q.scene.n ? C.NUM.slice(1, q.scene.n + 1) : []));
     $('.ask-text').classList.toggle('long', !!q.long);
     renderOptions(q);
     setAction(null);
@@ -3013,7 +3273,8 @@
       keyMode = true;
       document.body.classList.add('keys');
     }
-    if (k === 461 || k === 27 || (k === 8 && !typing)) {   // 461 = nút Back của remote LG
+    // Nút Back: 461 = LG webOS, 10009 = Samsung Tizen, Escape/Backspace = máy tính, GoBack/BrowserBack = Android TV.
+    if (k === 461 || k === 10009 || k === 27 || (k === 8 && !typing) || e.key === 'GoBack' || e.key === 'BrowserBack') {
       e.preventDefault();
       lastKeyBack = Date.now();
       goBack();
@@ -3026,7 +3287,13 @@
     moveFocus(dir);
   });
 
+  // Một số tivi tạm dừng AudioContext khi chuyển ứng dụng/màn hình: bật lại mỗi khi bé bấm.
+  const resumeAudio = () => {
+    if (Sfx.ctx && Sfx.ctx.state === 'suspended') Sfx.ctx.resume();
+  };
+  document.addEventListener('keydown', resumeAudio, true);
   document.addEventListener('pointerdown', () => {
+    resumeAudio();
     armBack(true);
     keyMode = false;
     document.body.classList.remove('keys');
@@ -3049,7 +3316,7 @@
   // Chỉ để kiểm thử: mở index.html?debug để xem trạng thái trò chơi trong console.
   if (/[?&]debug\b/.test(location.search)) {
     window.BHV = {
-      game: () => game, profile: () => profile, Store, Fx, Music, Sfx,
+      game: () => game, profile: () => profile, Store, Fx, Music, Sfx, Voice, audioLog,
       // Đặt tầng hiện tại khi đang trong tháp, ví dụ BHV.setFloor(39) rồi trả lời đúng để tới mốc 40.
       setFloor(n) {
         Object.assign(game, { floor: n, seg: segOf(n) });
@@ -3084,6 +3351,26 @@
         showQuestion(q);
       },
     };
+  }
+
+  // Bộ nhớ đệm của app (sw.js): chỉ chạy trên https hoặc localhost. Mở với ?nosw để gỡ (khi cần sửa lỗi).
+  if (navigator.serviceWorker) {
+    if (/[?&]nosw\b/.test(location.search)) {
+      navigator.serviceWorker.getRegistrations().then(list => list.forEach(r => r.unregister())).catch(() => {});
+      if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+    } else if (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(e => logAudio('sw lỗi', e && e.message));
+      });
+    }
+  }
+
+  // Bảng đo hiệu năng trên tivi: mở với ?perf.
+  if (/[?&]perf\b/.test(location.search)) {
+    window.BHV_INTERNAL = { Fx, Sfx, Voice, audioLog };
+    const sc = document.createElement('script');
+    sc.src = 'perfhud.js';
+    document.body.appendChild(sc);
   }
 
   Fx.applyMode();
