@@ -66,7 +66,8 @@
   const LETTERS = [['a', 'a'], ['ă', 'á'], ['â', 'ớ'], ['b', 'bờ'], ['c', 'cờ'], ['d', 'dờ'], ['đ', 'đờ'], ['e', 'e'], ['ê', 'ê'],
     ['g', 'gờ'], ['h', 'hờ'], ['i', 'i'], ['k', 'ca'], ['l', 'lờ'], ['m', 'mờ'], ['n', 'nờ'], ['o', 'o'], ['ô', 'ô'], ['ơ', 'ơ'],
     ['p', 'pờ'], ['q', 'quờ'], ['r', 'rờ'], ['s', 'sờ'], ['t', 'tờ'], ['u', 'u'], ['ư', 'ư'], ['v', 'vờ'], ['x', 'xờ'], ['y', 'i dài']];
-  const LETTER_NAME = Object.fromEntries(LETTERS);
+  const LETTER_NAME = {};
+  LETTERS.forEach(([l, name]) => { LETTER_NAME[l] = name; });
   const ALL_LETTERS = LETTERS.map(l => l[0]);
   const EASY_LETTERS = ['o', 'ô', 'ơ', 'a', 'ă', 'â', 'e', 'ê', 'u', 'ư', 'i', 't', 'c', 'b', 'd', 'đ'];
 
@@ -658,7 +659,8 @@
     const text = JSON.stringify([COUNTABLE, WORDS, WATER, LAND, FLY, NO_FLY, COLOR_ITEMS, SENSES, FOOD, LIFE, subjects, stickers, avatars,
       DIGRAPH_WORDS, RIDDLES, JOBS, GROUPS,
       hats, pets, themes, golden, UI_EMOJI]);
-    return [...new Set(text.match(/\p{Extended_Pictographic}️?/gu))];
+    // Tạo RegExp lúc gọi (chỉ tools/build.js dùng): viết thẳng /\p{…}/u sẽ là lỗi cú pháp trên trình duyệt tivi cũ.
+    return [...new Set(text.match(new RegExp('\\p{Extended_Pictographic}\\uFE0F?', 'gu')))];
   }
 
   globalThis.CONTENT = {

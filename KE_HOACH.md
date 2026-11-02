@@ -1,6 +1,7 @@
 # Kế hoạch và việc còn dang dở
 
 Tài liệu bàn giao để người (hoặc AI) khác làm tiếp. Đọc `README.md` trước để biết cách chạy.
+Kế hoạch sản phẩm (bán hàng, thanh toán, chạy trên mọi tivi bằng web): `docs/KE_HOACH_SAN_PHAM.md`.
 Cập nhật lần cuối: 2026-11-01.
 
 ## 1. Bối cảnh
@@ -120,6 +121,24 @@ Phụ huynh thấy câu hỏi quá dễ với bé 5 tuổi. Đã làm:
   Tự nhiên thêm 4 câu con vật ăn gì và 7 câu cuộc sống. Mô phỏng 120 câu tháp Đố vui: lặp 20 câu (trước ~71),
   câu lặp sớm nhất sau 54 câu (trước ~3). `BHV.sampleQuestions(n)` để thử.
 - Tự nhiên vẫn ít câu (52): nên bổ sung thêm khi có dịp.
+
+### 4.3f Giai đoạn 1 của kế hoạch sản phẩm: chạy tốt mọi tivi: ĐÃ XONG (2026-11-02)
+
+- **Tivi đời cũ:** trước đây app không chạy trên Chromium < 73 (`Object.fromEntries`), cỡ chữ sai trên < 79 (`clamp()`).
+  Thêm `polyfills.js` (ES5, nạp đầu tiên: globalThis, fromEntries, flat/flatMap, cỡ chữ rem bằng JS, phát hiện
+  thiếu flex `gap` → `html.no-gap`), bỏ `inset:`/`min()` trong CSS, bỏ regex `\p{}` khỏi mã chạy trên trình duyệt.
+  `node tools/compat.js` kiểm tra (chạy cả trong bước đưa lên); `--fix` tạo lại khối CSS dự phòng gap.
+  Đã chạy thử trọn luồng trên Chromium 71 (puppeteer-core 1.11 + bản Chromium 71 của @puppeteer/browsers).
+- **Âm thanh:** giọng đọc dùng MỘT `<audio>` (LG khuyến nghị), kết thúc theo `ended` + chờ 250 ms, hẹn giờ an toàn theo
+  thời lượng thật; `Voice.prefetch()` tải sẵn câu sắp nói. 21 tiếng hiệu ứng và vòng nhạc nền được tạo sẵn bằng
+  OfflineAudioContext khi bấm Bắt đầu (`Sfx.bakeAll`, `Music.bake`): 21 tiếng từ 222 bộ tổng hợp còn 21 nguồn âm.
+  `audioLog` ghi play/ended/lỗi.
+- **Hiệu ứng:** vòng vẽ không tạo đối tượng mới mỗi khung (nén mảng tại chỗ, kho mảnh vệt đuôi), gom tia/chấm cùng
+  màu + độ mờ vẽ một lần. CPU chậm 6 lần, bản nhẹ: mốc 100 từ 35–41 lên 42–43 hình/giây.
+- **Phím:** Back của Samsung (10009), Android TV (GoBack/BrowserBack).
+- **sw.js:** lưu sẵn app (mạng trước, hoặc bản có `?v=`), hình và giọng (lưu sẵn); mất mạng vẫn mở và đọc được câu đã
+  nghe. Chỉ chạy trên https/localhost; `?nosw` để gỡ.
+- **`?perf`:** bảng đo (`perfhud.js`): hình/giây, khựng, GPU, hiệu ứng, âm thanh, bộ nhớ đệm, nhật ký giọng đọc.
 
 ### 4.4 Máy chủ tự chạy khi bật Mac (phụ huynh đã đồng ý)
 

@@ -24,6 +24,14 @@ uv run tools/lgtv.py open https://phuong-leadsoft.github.io/be-hoc-vui/
 Bản này không đồng bộ hồ sơ với `serve.py` (trang https không được gọi máy chủ http trong nhà):
 tiến độ của bé chỉ lưu trong trình duyệt của tivi.
 
+## Kiểm tra trên tivi
+
+- Mở thêm `?perf` sau địa chỉ (ví dụ `…/be-hoc-vui/?perf`) để hiện bảng đo: số hình/giây, số lần khựng, chip đồ họa,
+  chế độ hiệu ứng, nhật ký giọng đọc. Chụp ảnh bảng này khi app chạy chậm hoặc mất tiếng.
+- App lưu sẵn trên máy (service worker) nên lần sau mở nhanh, mạng yếu vẫn chơi được. Nếu nghi app bị kẹt ở bản cũ,
+  mở với `?nosw` một lần để xóa bộ nhớ đệm.
+- Sửa code xong chạy `node tools/compat.js` để chắc vẫn chạy được trên tivi đời cũ (Chromium 63+).
+
 ## Cài lên tivi LG (biểu tượng trên launcher)
 
 Cần bật Developer Mode trên tivi: cài app **Developer Mode** từ LG Content Store, đăng nhập tài khoản
